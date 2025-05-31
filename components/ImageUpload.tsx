@@ -46,7 +46,7 @@ const ImageUpload = ({
   const onError = (error: any) => {
     console.log(error);
 
-    toast.error("Image upload failed", {
+    toast("Image upload failed", {
       description: `Your image could not be uploaded. Please try again.`,
       //variant: "destructive",
     });
@@ -55,7 +55,7 @@ const ImageUpload = ({
     setFile(res);
     onFileChange(res.filePath);
 
-    toast.success("Image uploaded successfully", {
+    toast("Image uploaded successfully", {
       description: `${res.filePath} uploaded successfully!`,
     });
   };
