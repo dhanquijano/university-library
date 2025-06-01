@@ -102,6 +102,9 @@
   }
 }
 
+
+
+
 @utility form-btn {
   @apply bg-primary! text-dark-100! hover:bg-primary! inline-flex! min-h-14! w-full! items-center! justify-center! rounded-md! px-6! py-2! font-bold! text-base! cursor-pointer!;
 }
@@ -194,12 +197,12 @@ bg-dark-600 mt-3 min-h-14 w-full font-bebas-neue text-base text-primary
 }
 
 @utility book-overview_btn {
-  @apply mt-4! min-h-14! w-fit! bg-primary! text-dark-100! hover:bg-primary/90! max-md:w-full!;
+  @apply mt-4! min-h-14! w-fit! bg-primary! text-dark-100! hover:bg-primary/90! max-md:w-full! cursor-pointer!;
 }
 
 @utility upload-btn {
   /* File Upload */
-  @apply flex min-h-14 w-full items-center justify-center gap-1.5 rounded-md bg-dark-300! cursor-pointer;
+  @apply flex! min-h-14! w-full! items-center! justify-center! gap-1.5! rounded-md! cursor-pointer!;
 }
 
 @utility upload-filename {
@@ -443,3 +446,4 @@ bg-dark-600 mt-3 min-h-14 w-full font-bebas-neue text-base text-primary
     @apply bg-background text-foreground;
   }
 }
+
