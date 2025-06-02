@@ -38,7 +38,9 @@ export const borrowBook = async (params: BorrowBookParams) => {
 
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(record)),
+      data: {
+        record,
+      },
     };
   } catch (error) {
     console.log(error);

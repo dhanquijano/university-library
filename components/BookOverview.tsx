@@ -70,7 +70,7 @@ const BookOverview = async ({
 
         <p className="book-description">{description}</p>
 
-        {!user && (
+        {user && (
           <BorrowBook
             bookId={id}
             userId={userId}
