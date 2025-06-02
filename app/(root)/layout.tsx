@@ -21,6 +21,8 @@ const Layout = async ({ children }: { children: ReactNode }) => {
       .where(eq(users.id, session?.user?.id))
       .limit(1);
 
+    if (!user) return;
+
     if (user[0].lastActivityDate === new Date().toISOString().slice(0, 10))
       return;
 
@@ -34,6 +36,7 @@ const Layout = async ({ children }: { children: ReactNode }) => {
     <main className="root-container">
       <div className="mx-auto max-2xl">
         <Header session={session} />
+
         <div className="mt-20 pb-20">{children}</div>
       </div>
     </main>
