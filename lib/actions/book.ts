@@ -24,12 +24,22 @@ export const borrowBook = async (params: BorrowBookParams) => {
 
     const dueDate = dayjs().add(7, "day").toDate().toDateString();
 
-    const record = db.insert(borrowRecords).values({
-      userId,
-      bookId,
-      dueDate,
-      status: "BORROWED",
-    });
+    const record = await db
+      .insert(borrowRecords)
+      .values({
+        userId,
+        bookId,
+        dueDate,
+        status: "BORROWED",
+      })
+      .returning();
+
+    if (!record || record.length === 0) {
+      return {
+        success: false,
+        error: "Failed to create borrow record.",
+      };
+    }
 
     await db
       .update(books)
@@ -38,9 +48,7 @@ export const borrowBook = async (params: BorrowBookParams) => {
 
     return {
       success: true,
-      data: {
-        record,
-      },
+      data: JSON.parse(JSON.stringify(record)),
     };
   } catch (error) {
     console.log(error);
