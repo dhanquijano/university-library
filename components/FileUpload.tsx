@@ -73,8 +73,8 @@ const FileUpload = ({
   const onError = (error: any) => {
     console.log(error);
 
-    toast(`{$type} upload failed`, {
-      description: `Your {$type} could not be uploaded. Please try again.`,
+    toast(`${type} upload failed`, {
+      description: `Your ${type} could not be uploaded. Please try again.`,
       //variant: "destructive",
     });
   };
@@ -82,7 +82,7 @@ const FileUpload = ({
     setFile(res);
     onFileChange(res.filePath);
 
-    toast("{$type} uploaded successfully", {
+    toast(`${type} uploaded successfully`, {
       description: `${res.filePath} uploaded successfully!`,
     });
   };
@@ -99,7 +99,7 @@ const FileUpload = ({
     } else if (type === "video") {
       if (file.size > 50 * 1024 * 1024) {
         toast("File size too large", {
-          description: `Pleas upload a file that is less than 20MB in size`,
+          description: `Please upload a file that is less than 20MB in size`,
         });
 
         return false;
@@ -169,14 +169,14 @@ const FileUpload = ({
       {file &&
         (type === "image" ? (
           <IKImage
-            alt={file.filePath}
-            path={file.filePath}
+            alt={file.filePath ?? "Image"}
+            path={file.filePath ?? undefined}
             width={500}
             height={300}
           />
         ) : type === "video" ? (
           <IKVideo
-            path={file.filePath}
+            path={file.filePath ?? undefined}
             controls={true}
             className="h-96 w-full rounded-xl"
           />
