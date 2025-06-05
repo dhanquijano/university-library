@@ -7,18 +7,18 @@ import { sampleBooks } from "@/constants";
 const Page = () => {
   return (
     <>
-      <form
-        action={async () => {
-          "use server";
+      {/*<form*/}
+      {/*  action={async () => {*/}
+      {/*    "use server";*/}
 
-          await signOut();
-        }}
-        className="mb-10"
-      >
-        <Button className="cursor-pointer">Logout</Button>
-      </form>
+      {/*    await signOut();*/}
+      {/*  }}*/}
+      {/*  className="mb-10"*/}
+      {/*>*/}
+      {/*  <Button className="cursor-pointer">Logout</Button>*/}
+      {/*</form>*/}
 
-      {/*<BookList title="Borrowed Books" books={sampleBooks} />*/}
+      <BookList title="Borrowed Books" books={sampleBooks} />
     </>
   );
 };
