@@ -17,6 +17,15 @@ const Header = ({ session }: { session: Session }) => {
 
       <ul className="flex flex-row items-center gap-8">
         <li>
+          <Link href="">Services</Link>
+        </li>
+        <li>
+          <Link href="">Appointments</Link>
+        </li>
+        <li>
+          <Link href=""></Link>
+        </li>
+        <li>
           <Link className="text-lg text-primary" href="/my-profile">
             My Profile
           </Link>
