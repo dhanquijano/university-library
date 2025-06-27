@@ -17,13 +17,19 @@ const Header = ({ session }: { session: Session }) => {
 
       <ul className="flex flex-row items-center gap-8">
         <li>
-          <Link href="">Services</Link>
+          <Link className="text-lg text-primary" href="/services">
+            Services
+          </Link>
         </li>
         <li>
-          <Link href="">Appointments</Link>
+          <Link className="text-lg text-primary" href="/appointments">
+            Appointments
+          </Link>
         </li>
         <li>
-          <Link href=""></Link>
+          <Link className="text-lg text-primary" href="/stylists">
+            Stylists
+          </Link>
         </li>
         <li>
           <Link className="text-lg text-primary" href="/my-profile">
