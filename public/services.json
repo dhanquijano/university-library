@@ -1,0 +1,213 @@
+[
+  {
+    "category": "Hair Cut",
+    "title": "Ladies's Haircut (Free Hair Wash Massage)",
+    "description": "quality women hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Cut",
+    "title": "Kid's Haircut (Free Hair Wash Massage)",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Care",
+    "title": "Hair Mud Scalp Treatment (Dandruff Control)",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Care",
+    "title": "Hot Oil",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Care",
+    "title": "Intense Curing Mask",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Care",
+    "title": "Total Hair Repair",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Care",
+    "title": "Revitalizing Treatment",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Hair Dye",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Sanbry Hair Dye",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Highlights",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Rebonding",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Brazilian Blowout",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Hair Bleaching",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Hair Styling",
+    "title": "Hair Perming",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Shave",
+    "title": "Beard Shave",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Shave",
+    "title": "Head Shave",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Shave",
+    "title": "Beard Trim with Design",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Shave",
+    "title": "Eye Brow Threading",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Spa & Wellness",
+    "title": "Deep Cleansing Facial",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Spa & Wellness",
+    "title": "Manicure",
+    "description": "Manicure regular or with polish",
+    "price": "278-328"
+  },
+  {
+    "category": "Spa & Wellness",
+    "title": "Pedicure",
+    "description": "Pedicure regular or with polish",
+    "price": "298-348"
+  },
+  {
+    "category": "Spa & Wellness",
+    "title": "Massage `",
+    "description": "quality massage ranging from 15 minutes to 1 hour",
+    "price": "228-648"
+  },
+  {
+    "category": "Spa & Wellness",
+    "title": "Ear Cleaning",
+    "description": "quality men hair cut",
+    "price": "488"
+  },
+  {
+    "category": "Package Services",
+    "title": "Maginoo Package",
+    "description": "Our package includes Hair Dye, Haircut, and Shave",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Makisig Package",
+    "description": "Our package includes Hair Mud Treatment and Haircut",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Matipuno Package",
+    "description": "Our package includes Hair Curing Mask, Haircut, and Shave",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Matalino Package",
+    "description": "Our package includes Facial, Foot Spa, Pedicure, Manicure, and Ear Cleaning",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Malakas Package",
+    "description": "Our package includes Foot Spa, Pedicure, Manicure, and Ear Cleaning",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Maliksi Package",
+    "description": "Our package includes Haircut, Ear Cleaning, Hair Mud Treatment, and Foot Spa/Pedicure",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Gwapo Package",
+    "description": "Our package includes Haircut and Beard Shave",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Masinop Package",
+    "description": "Our package includes Haircut and Total Hair Repair",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Macho Package",
+    "description": "Our package includes Haircut, Shave, and Facial Treatment",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Matapang Package",
+    "description": "Our package includes Haircut, Beard Trim, and Ear Cleaning",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Masigasig Package",
+    "description": "Our package includes Foot Spa, Pedicure, Manicure, and 15mins Foot Massage",
+    "price": "2338"
+  },
+  {
+    "category": "Package Services",
+    "title": "Matikas Package",
+    "description": "Our package includes Haircut, Scalp Genesis, Ear Cleaning",
+    "price": "2338"
+  }
+
+]
