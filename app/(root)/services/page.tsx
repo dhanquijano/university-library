@@ -1,6 +1,7 @@
 import React from "react";
 import ServicesList from "@/components/ServicesList";
 import { services } from "@/lib/services";
+import Image from "next/image";
 
 const Page = () => {
   return (
@@ -14,6 +15,13 @@ const Page = () => {
         haircuts, shaves, and beard treatments tailored just for you. Explore
         our services and experience the care and style you deserve.
       </h2>
+      <Image
+        src="/images/menu-services.jpg"
+        alt="menu"
+        width={350}
+        height={350}
+        className="mx-auto"
+      />
       <ServicesList title="Our Services" services={services} />
     </>
   );

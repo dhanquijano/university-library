@@ -166,7 +166,14 @@ export const services: Service[] = [
     category: "Spa & Wellness",
     title: "Ear Cleaning",
     description: "Gentle and hygienic ear cleaning service for optimal care.",
-    price: "₱4328",
+    price: "₱338",
+  },
+  {
+    category: "Spa & Wellness",
+    title: "White Hair Pulling",
+    description:
+      "Gentle and hygienic white hair pulling service that lasts for 30 mins or 1 hour.",
+    price: "₱358-₱568",
   },
   {
     category: "Package Services",
