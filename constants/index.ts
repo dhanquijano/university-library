@@ -49,7 +49,7 @@ export const FIELD_NAMES = {
 };
 
 export const FIELD_TYPES = {
-  fullname: "text",
+  fullName: "text",
   email: "email",
   universityId: "number",
   password: "password",
@@ -245,3 +245,25 @@ export const borrowStatuses = [
     textColor: "text-[#026AA2]",
   },
 ];
+
+export const APPOINTMENT_FIELD_NAMES = {
+  email: "Email",
+  fullName: "Full Name",
+  mobileNumber: "Mobile NUmber",
+  appointmentDate: "Appointment Date",
+  appointmentTime: "Appointment Time",
+  branch: "Branch",
+  barber: "Barber",
+  services: "Services",
+};
+
+export const APPOINTMENT_FIELD_TYPES = {
+  email: "email",
+  fullName: "text",
+  mobileNumber: "tel",
+  appointmentDate: "date",
+  appointmentTime: "time",
+  branch: "text",
+  barber: "text",
+  services: "text",
+};

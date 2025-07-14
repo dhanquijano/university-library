@@ -28,3 +28,28 @@ export const bookSchema = z.object({
   videoUrl: z.string().nonempty(),
   summary: z.string().trim().min(10),
 });
+
+export const appointmentSchema = z.object({
+  fullName: z.string().min(1, "Full name is required"),
+  email: z.string().email("Invalid email address"),
+  mobileNumber: z
+    .string()
+    .regex(
+      /^09\d{9}$/,
+      "Mobile number must be a valid PH number (e.g., 09171234567)",
+    ),
+
+  appointmentDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid date format",
+  }),
+
+  appointmentTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, {
+    message: "Time must be in HH:MM (24-hour) format",
+  }),
+
+  branch: z.string().min(1, "Branch is required"),
+
+  barber: z.string().min(1, "Barber is required"),
+
+  services: z.string().min(1, "Service is required"),
+});

@@ -68,3 +68,20 @@ export const borrowRecords = pgTable("borrow_records", {
   status: BORROW_STATUS_ENUM("status").default("BORROWED").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
+
+export const appointments = pgTable("appointments", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+
+  email: text("email").notNull().unique(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  mobileNumber: varchar("mobile_number", { length: 20 }).notNull(),
+
+  appointmentDate: date("appointment_date").notNull(),
+  appointmentTime: varchar("appointment_time", { length: 10 }).notNull(), // e.g., "14:00"
+
+  branch: varchar("branch", { length: 100 }).notNull(),
+  barber: varchar("barber", { length: 100 }).notNull(),
+  services: text("services").notNull(),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
