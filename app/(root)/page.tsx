@@ -1,31 +1,14 @@
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import BookOverview from "@/components/BookOverview";
-import BookList from "@/components/BookList";
-import { books, users } from "@/database/schema";
-import { db } from "@/database/drizzle";
-import { auth } from "@/auth";
-import { desc } from "drizzle-orm";
+import React from "react";
 
-const Home = async () => {
-  const session = await auth();
-
-  const latestBooks = (await db
-    .select()
-    .from(books)
-    .limit(10)
-    .orderBy(desc(books.createdAt))) as Book[];
-
+const Page = () => {
   return (
-    <>
-      <BookOverview {...latestBooks[0]} userId={session?.user?.id as string} />
+    <div className="hero-bg">
+      <div className="text-6xl text-white font-semibold">
+        Greetings from the Heart!
+      </div>
 
-      <BookList
-        title="Latest Books"
-        books={latestBooks.slice(1)}
-        containerClassName="mt-28"
-      />
-    </>
+    </div>
   );
 };
-export default Home;
+export default Page;
+

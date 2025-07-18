@@ -249,7 +249,7 @@ export const borrowStatuses = [
 export const APPOINTMENT_FIELD_NAMES = {
   email: "Email",
   fullName: "Full Name",
-  mobileNumber: "Mobile NUmber",
+  mobileNumber: "Mobile Number",
   appointmentDate: "Appointment Date",
   appointmentTime: "Appointment Time",
   branch: "Branch",
