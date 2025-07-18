@@ -36,7 +36,7 @@ const ServicesList = ({ title, services }: Props) => {
               >
                 <div>
                   <h4 className="text-xl font-semibold">{service.title}</h4>
-                  <p className="text-sm text-gray-400">{service.description}</p>
+                  <p className="text-sm" style={{ color: "#4a1515"}}>{service.description}</p>
                 </div>
                 <span className="text-lg font-semibold">{service.price}</span>
               </li>

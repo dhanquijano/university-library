@@ -60,7 +60,7 @@ const AppointmentForm = <T extends FieldValues>({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-white">
+      <h1 className="text-2xl font-semibold" style={{ color: "#0a0533" }}>
         Book Your Appointment
       </h1>
       <p className="text-light-100">
@@ -79,7 +79,7 @@ const AppointmentForm = <T extends FieldValues>({
               name={field as Path<T>}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="capitalize text-white">
+                  <FormLabel className="capitalize" style={{ color: "#0a0533" }}>
                     {APPOINTMENT_FIELD_NAMES[
                       field.name as keyof typeof APPOINTMENT_FIELD_NAMES
                     ] ?? field.name}

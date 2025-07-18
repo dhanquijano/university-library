@@ -39,7 +39,7 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
-  --color-primary: #e7c9a5;
+  --color-primary: #c96e06;
   --color-primary-admin: #25388c;
 
   --color-green-100: #ecfdf3;
@@ -55,7 +55,7 @@
 
   --color-blue-100: #0089f1;
 
-  --color-light-100: #d6e0ff;
+  --color-light-100: #0a0533;
   --color-light-200: #eed1ac;
   --color-light-300: #f8f8ff;
   --color-light-400: #edf1f1;
@@ -80,7 +80,7 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  --background-image-pattern: url('/images/pattern.webp');
+  --background-image-pattern: url('/images/white-background.jpg');
 
 }
 
@@ -339,6 +339,17 @@ bg-dark-600 mt-3 min-h-14 w-full font-bebas-neue text-base text-primary
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+  }
+
+  .hero-bg {
+  min-height: 100vh;
+  width: 80vw;
+  background:
+    url('/images/sanbrys.png') center/cover no-repeat;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   }
 
   .hide-scrollbar::-webkit-scrollbar {

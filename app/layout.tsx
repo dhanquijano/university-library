@@ -24,7 +24,7 @@ const bebasNeue = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "BookWise",
+  title: "Sanbry Men Grooming House",
   description:
     "BookWise is a book borrowing university library management solution",
 };
