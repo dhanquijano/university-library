@@ -21,17 +21,17 @@ export const adminSideBarLinks = [
   {
     img: "/icons/admin/users.svg",
     route: "/admin/users",
-    text: "All Users",
+    text: "All Stylists",
   },
   {
     img: "/icons/admin/book.svg",
     route: "/admin/books",
-    text: "All Books",
+    text: "All Appointments",
   },
   {
     img: "/icons/admin/bookmark.svg",
     route: "/admin/borrow-records",
-    text: "Borrow Records",
+    text: "Inventory Stock",
   },
   {
     img: "/icons/admin/user.svg",
