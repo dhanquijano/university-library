@@ -36,13 +36,30 @@ const Header = ({ session }: { session: Session }) => {
             My Profile
           </Link>
         </li>
-        <li>
-          <form action={signOutAction} className="">
-            <Button className="text-lg cursor-pointer bg-transparent text-primary border-none hover:bg-transparent hover:text-primary active:bg-transparent focus:outline-none ">
-              Logout
-            </Button>
-          </form>
-        </li>
+        {session?.user ? (
+          <>
+            {session?.user?.role === "ADMIN" && (
+              <li>
+                <a href="/admin" className="text-lg text-primary">
+                  Admin Panel
+                </a>
+              </li>
+            )}
+            <li>
+              <form action={signOutAction}>
+                <Button className="text-lg cursor-pointer bg-transparent text-primary border-none hover:bg-transparent hover:text-primary active:bg-transparent focus:outline-none">
+                  Logout
+                </Button>
+              </form>
+            </li>
+          </>
+        ) : (
+          <li>
+            <a href="/sign-in" className="text-lg text-primary">
+              Login
+            </a>
+          </li>
+        )}
       </ul>
     </header>
   );
