@@ -1,0 +1,37 @@
+[
+  {
+    "id": "branch-1",
+    "name": "Sanbry Main Branch",
+    "address": "123 Main Street, Quezon City",
+    "phone": "+63 912 345 6789",
+    "hours": "9:00 AM - 8:00 PM"
+  },
+  {
+    "id": "branch-2", 
+    "name": "Sanbry Makati",
+    "address": "456 Ayala Avenue, Makati City",
+    "phone": "+63 912 345 6790",
+    "hours": "9:00 AM - 8:00 PM"
+  },
+  {
+    "id": "branch-3",
+    "name": "Sanbry BGC",
+    "address": "789 Bonifacio Global City, Taguig",
+    "phone": "+63 912 345 6791", 
+    "hours": "10:00 AM - 9:00 PM"
+  },
+  {
+    "id": "branch-4",
+    "name": "Sanbry Ortigas",
+    "address": "321 Ortigas Center, Pasig City",
+    "phone": "+63 912 345 6792",
+    "hours": "9:00 AM - 8:00 PM"
+  },
+  {
+    "id": "branch-5",
+    "name": "Sanbry Alabang",
+    "address": "654 Alabang Town Center, Muntinlupa",
+    "phone": "+63 912 345 6793",
+    "hours": "9:00 AM - 8:00 PM"
+  }
+] 

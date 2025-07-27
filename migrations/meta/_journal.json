@@ -36,6 +36,13 @@
       "when": 1752513706944,
       "tag": "0004_massive_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1753563156573,
+      "tag": "0005_nosy_scrambler",
+      "breakpoints": true
     }
   ]
 }
