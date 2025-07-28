@@ -30,8 +30,8 @@ export const adminSideBarLinks = [
   },
   {
     img: "/icons/admin/bookmark.svg",
-    route: "/admin/borrow-records",
-    text: "Inventory Stock",
+    route: "/admin/inventory",
+    text: "Inventory Management",
   },
   {
     img: "/icons/admin/user.svg",

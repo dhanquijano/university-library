@@ -13,28 +13,32 @@ export interface AppointmentAvailability {
 }
 
 // Generate time slots for a given date range
-export const generateTimeSlots = (startTime: string = "09:00", endTime: string = "20:00", interval: number = 30): string[] => {
+export const generateTimeSlots = (
+  startTime: string = "09:00",
+  endTime: string = "20:00",
+  interval: number = 30,
+): string[] => {
   const slots: string[] = [];
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-  
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+
   let currentHour = startHour;
   let currentMinute = startMinute;
-  
+
   while (
-    currentHour < endHour || 
+    currentHour < endHour ||
     (currentHour === endHour && currentMinute < endMinute)
   ) {
-    const timeString = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+    const timeString = `${currentHour.toString().padStart(2, "0")}:${currentMinute.toString().padStart(2, "0")}`;
     slots.push(timeString);
-    
+
     currentMinute += interval;
     if (currentMinute >= 60) {
       currentHour += Math.floor(currentMinute / 60);
       currentMinute = currentMinute % 60;
     }
   }
-  
+
   return slots;
 };
 
@@ -42,18 +46,22 @@ export const generateTimeSlots = (startTime: string = "09:00", endTime: string =
 export const getAvailableTimeSlots = async (
   date: string,
   barberId: string,
-  branchId: string
+  branchId: string,
 ): Promise<TimeSlot[]> => {
   try {
     // Get branch and barber names from the IDs
     const [branchesResponse, barbersResponse] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/branches.json`),
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/barbers.json`)
+      fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/branches.json`,
+      ),
+      fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/barbers.json`,
+      ),
     ]);
 
     const [branches, barbers] = await Promise.all([
       branchesResponse.json(),
-      barbersResponse.json()
+      barbersResponse.json(),
     ]);
 
     const branch = branches.find((b: any) => b.id === branchId);
@@ -70,22 +78,22 @@ export const getAvailableTimeSlots = async (
         and(
           eq(appointments.appointmentDate, date),
           eq(appointments.barber, barberName),
-          eq(appointments.branch, branchName)
-        )
+          eq(appointments.branch, branchName),
+        ),
       );
 
     // Generate all possible time slots
     const allTimeSlots = generateTimeSlots();
-    
+
     // Get booked times
-    const bookedTimes = existingAppointments.map(apt => apt.appointmentTime);
-    
+    const bookedTimes = existingAppointments.map((apt) => apt.appointmentTime);
+
     // Create time slots with availability
-    const timeSlots: TimeSlot[] = allTimeSlots.map(time => ({
+    const timeSlots: TimeSlot[] = allTimeSlots.map((time) => ({
       time,
-      available: !bookedTimes.includes(time)
+      available: !bookedTimes.includes(time),
     }));
-    
+
     return timeSlots;
   } catch (error) {
     console.error("Error getting available time slots:", error);
@@ -97,17 +105,17 @@ export const getAvailableTimeSlots = async (
 export const getAvailableDates = (): string[] => {
   const dates: string[] = [];
   const today = new Date();
-  
+
   for (let i = 0; i < 30; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
-    
+
     // Skip Sundays (assuming the salon is closed on Sundays)
     if (date.getDay() !== 0) {
-      dates.push(date.toISOString().split('T')[0]);
+      dates.push(date.toISOString().split("T")[0]);
     }
   }
-  
+
   return dates;
 };
 
@@ -116,7 +124,7 @@ export const isTimeSlotAvailable = async (
   date: string,
   time: string,
   barberId: string,
-  branchId: string
+  branchId: string,
 ): Promise<boolean> => {
   try {
     const existingAppointment = await db
@@ -127,8 +135,8 @@ export const isTimeSlotAvailable = async (
           eq(appointments.appointmentDate, date),
           eq(appointments.appointmentTime, time),
           eq(appointments.barber, barberId),
-          eq(appointments.branch, branchId)
-        )
+          eq(appointments.branch, branchId),
+        ),
       )
       .limit(1);
 
@@ -140,11 +148,45 @@ export const isTimeSlotAvailable = async (
 };
 
 // Get branch operating hours
-export const getBranchHours = (branchId: string): { start: string; end: string } => {
+export const getBranchHours = (
+  branchId: string,
+): { start: string; end: string } => {
   // This could be fetched from a database or configuration
   // For now, returning default hours
   return {
     start: "09:00",
-    end: "20:00"
+    end: "20:00",
   };
-}; 
+};
+
+export interface Branch {
+  id: string;
+  name: string;
+}
+
+export interface Barber {
+  id: string;
+  name: string;
+  rating: number;
+  experience: string;
+  specialties: string[];
+}
+
+export interface Service {
+  title: string;
+  description: string;
+  price: number;
+}
+
+export interface TimeSlot {
+  time: string;
+  available: boolean;
+}
+
+export interface AppointmentFormValues {
+  branch: string;
+  barber: string;
+  services: string;
+  appointmentDate: string;
+  appointmentTime: string;
+}

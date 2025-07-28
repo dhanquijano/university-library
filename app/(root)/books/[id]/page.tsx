@@ -3,9 +3,9 @@ import { db } from "@/database/drizzle";
 import { books } from "@/database/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import BookOverview from "@/components/BookOverview";
+import BookOverview from "@/components/book/BookOverview";
 import { auth } from "@/auth";
-import BookVideo from "@/components/BookVideo";
+import BookVideo from "@/components/book/BookVideo";
 
 const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   const id = (await params).id;

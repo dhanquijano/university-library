@@ -15,45 +15,57 @@ export const createAppointment = async (data: {
   services: string;
 }) => {
   try {
-    // Get branch and barber names from the IDs
+    // Fetch branch and barber lists
     const [branchesResponse, barbersResponse] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/branches.json`),
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/barbers.json`)
+      fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/branches.json`,
+      ),
+      fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/barbers.json`,
+      ),
     ]);
 
     const [branches, barbers] = await Promise.all([
       branchesResponse.json(),
-      barbersResponse.json()
+      barbersResponse.json(),
     ]);
 
     const branch = branches.find((b: any) => b.id === data.branch);
     const barber = barbers.find((b: any) => b.id === data.barber);
 
     const branchName = branch?.name || data.branch;
-    const barberName = barber?.name || data.barber;
+    const barberName =
+      data.barber === "no_preference" ? "" : barber?.name || data.barber;
 
-    // Check for existing appointment with the same date, time, branch, and barber
-    const existingAppointment = await db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.appointmentDate, data.appointmentDate),
-          eq(appointments.appointmentTime, data.appointmentTime),
-          eq(appointments.branch, branchName),
-          eq(appointments.barber, barberName)
+    // Only check for conflict if a specific barber is selected
+    let conflictExists = false;
+
+    if (barberName !== "") {
+      const existingAppointment = await db
+        .select()
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.appointmentDate, data.appointmentDate),
+            eq(appointments.appointmentTime, data.appointmentTime),
+            eq(appointments.branch, branchName),
+            eq(appointments.barber, barberName),
+          ),
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    if (existingAppointment.length > 0) {
-      return { 
-        success: false, 
-        error: "This time slot is already booked. Please select a different time." 
+      conflictExists = existingAppointment.length > 0;
+    }
+
+    if (conflictExists) {
+      return {
+        success: false,
+        error:
+          "This time slot is already booked. Please select a different time.",
       };
     }
 
-    // Create the appointment if no conflict exists
+    // Create the appointment
     await db.insert(appointments).values({
       fullName: data.fullName,
       email: data.email,
@@ -92,20 +104,21 @@ export const deleteAppointment = async (id: string) => {
   }
 };
 
-export const updateAppointment = async (id: string, data: {
-  fullName?: string;
-  email?: string;
-  mobileNumber?: string;
-  appointmentDate?: string;
-  appointmentTime?: string;
-  branch?: string;
-  barber?: string;
-  services?: string;
-}) => {
+export const updateAppointment = async (
+  id: string,
+  data: {
+    fullName?: string;
+    email?: string;
+    mobileNumber?: string;
+    appointmentDate?: string;
+    appointmentTime?: string;
+    branch?: string;
+    barber?: string;
+    services?: string;
+  },
+) => {
   try {
-    await db.update(appointments)
-      .set(data)
-      .where(eq(appointments.id, id));
+    await db.update(appointments).set(data).where(eq(appointments.id, id));
     return { success: true };
   } catch (error) {
     console.error("Error updating appointment:", error);
