@@ -1,110 +1,315 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  DefaultValues,
-  FieldValues,
-  SubmitHandler,
-  useForm,
-  UseFormReturn,
-  Path,
-} from "react-hook-form";
-import { ZodType } from "zod";
-
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-
+import { Form } from "@/components/ui/form";
 import { toast } from "sonner";
-import { APPOINTMENT_FIELD_NAMES, APPOINTMENT_FIELD_TYPES } from "@/constants";
+import { createAppointment } from "@/lib/actions/appointments";
+import PersonalInformation from "./appointment/PersonalInformation";
+import BranchSelection from "./appointment/BranchSelection";
+import BarberSelection from "./appointment/BarberSelection";
+import ServiceSelection from "./appointment/ServiceSelection";
+import DateTimeSelection from "./appointment/DateTimeSelection";
+import { AppointmentData, TimeSlot, Barber } from "./appointment/types";
 
-interface Props<T extends FieldValues> {
-  schema: ZodType<T>;
-  defaultValues: T;
-  onSubmit: (data: T) => Promise<{ success: boolean; error?: string }>;
-}
+// Enhanced schema with dropdown validation
+const enhancedAppointmentSchema = z.object({
+  fullName: z.string().min(1, "Full name is required"),
+  email: z.string().email("Invalid email address"),
+  mobileNumber: z
+    .string()
+    .regex(
+      /^09\d{9}$/,
+      "Mobile number must be a valid PH number (e.g., 09171234567)",
+    ),
+  appointmentDate: z.string().min(1, "Appointment date is required"),
+  appointmentTime: z.string().min(1, "Appointment time is required"),
+  branch: z.string().min(1, "Branch is required"),
+  barber: z.string().min(1, "Barber is required"),
+  services: z.string().min(1, "Service is required"),
+});
 
-const AppointmentForm = <T extends FieldValues>({
-  schema,
-  defaultValues,
-  onSubmit,
-}: Props<T>) => {
-  const form: UseFormReturn<T> = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: defaultValues as DefaultValues<T>,
+type FormData = z.infer<typeof enhancedAppointmentSchema>;
+
+const AppointmentForm = () => {
+  const [appointmentData, setAppointmentData] =
+    useState<AppointmentData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedBarber, setSelectedBarber] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [availableBarbers, setAvailableBarbers] = useState<Barber[]>([]);
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(enhancedAppointmentSchema),
+    defaultValues: {
+      fullName: "",
+      email: "",
+      mobileNumber: "",
+      appointmentDate: "",
+      appointmentTime: "",
+      branch: "",
+      barber: "",
+      services: "",
+    },
   });
 
-  const handleSubmit: SubmitHandler<T> = async (data) => {
-    const result = await onSubmit(data);
+  // Fetch appointment data on component mount
+  useEffect(() => {
+    const fetchAppointmentData = async () => {
+      try {
+        const response = await fetch("/api/appointments/data");
+        const result = await response.json();
 
-    if (result.success) {
-      toast("Appointment Booked!", {
-        description: "Your appointment was submitted successfully.",
-      });
+        if (result.success) {
+          setAppointmentData(result.data);
+        } else {
+          toast.error("Failed to load appointment data");
+        }
+      } catch (error) {
+        console.error("Error fetching appointment data:", error);
+        toast.error("Failed to load appointment data");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      form.reset();
+    fetchAppointmentData();
+  }, []);
+
+  // Fetch barbers when branch changes
+  useEffect(() => {
+    const fetchBarbersForBranch = async (branchId: string) => {
+      try {
+        const response = await fetch(
+          `/api/appointments/data?branchId=${branchId}`,
+        );
+        const result = await response.json();
+
+        if (result.success) {
+          setAvailableBarbers(result.data.barbers);
+        } else {
+          setAvailableBarbers([]);
+        }
+      } catch (error) {
+        console.error("Error fetching barbers for branch:", error);
+        setAvailableBarbers([]);
+      }
+    };
+
+    if (selectedBranch) {
+      fetchBarbersForBranch(selectedBranch);
     } else {
-      toast("Error booking appointment", {
-        description: result.error ?? "An error occurred",
-      });
+      setAvailableBarbers([]);
+    }
+  }, [selectedBranch]);
+
+  // Check availability when branch, barber, or date changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (selectedBranch && selectedBarber && selectedDate) {
+        checkAvailability();
+      } else {
+        setTimeSlots([]);
+      }
+    }, 300); // Debounce for 300ms
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedBranch, selectedBarber, selectedDate]);
+
+  // Periodically refresh availability to handle concurrent bookings
+  useEffect(() => {
+    if (!selectedBranch || !selectedBarber || !selectedDate) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      checkAvailability();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(intervalId);
+  }, [selectedBranch, selectedBarber, selectedDate]);
+
+  const checkAvailability = async () => {
+    if (!selectedBranch || !selectedBarber || !selectedDate) {
+      return;
+    }
+
+    setCheckingAvailability(true);
+    try {
+      const response = await fetch(
+        `/api/appointments/availability?date=${selectedDate}&barberId=${selectedBarber}&branchId=${selectedBranch}`,
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTimeSlots(result.data.timeSlots);
+      } else {
+        console.error("Availability check failed:", result.error);
+        setTimeSlots([]);
+      }
+    } catch (error) {
+      console.error("Error checking availability:", error);
+      setTimeSlots([]);
+    } finally {
+      setCheckingAvailability(false);
     }
   };
 
+  const handleSubmit = async (data: FormData) => {
+    console.log("Form submitted with data:", data);
+    try {
+      const result = await createAppointment(data);
+
+      if (result.success) {
+        toast.success("Appointment Booked!", {
+          description: "Your appointment was submitted successfully.",
+        });
+        form.reset();
+        setSelectedBranch("");
+        setSelectedBarber("");
+        setSelectedDate("");
+        setSelectedTime("");
+        setTimeSlots([]);
+      } else {
+        // If it's a booking conflict, refresh the time slots
+        if (result.error?.includes("already booked")) {
+          toast.error(
+            "This time slot is no longer available. Please select a different time.",
+            {
+              description: "The time slots have been refreshed.",
+            },
+          );
+          // Refresh availability
+          if (selectedBranch && selectedBarber && selectedDate) {
+            checkAvailability();
+          }
+        } else {
+          toast.error("Error booking appointment", {
+            description: result.error ?? "An error occurred",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Submit error:", error);
+      toast.error("An error occurred while booking your appointment");
+    }
+  };
+
+  const handleBranchChange = (branchId: string) => {
+    setSelectedBranch(branchId);
+    form.setValue("branch", branchId);
+    setSelectedBarber("");
+    setSelectedDate("");
+    form.setValue("barber", "");
+    form.setValue("appointmentDate", "");
+    form.setValue("appointmentTime", "");
+  };
+
+  const handleBarberChange = (barberId: string) => {
+    setSelectedBarber(barberId);
+    form.setValue("barber", barberId);
+    setSelectedDate("");
+    form.setValue("appointmentDate", "");
+    form.setValue("appointmentTime", "");
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    form.setValue("appointmentDate", date);
+    form.setValue("appointmentTime", "");
+    setSelectedTime("");
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <span className="ml-2">Loading appointment form...</span>
+      </div>
+    );
+  }
+
+  if (!appointmentData) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600">Failed to load appointment data</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold" style={{ color: "#0a0533" }}>
-        Book Your Appointment
-      </h1>
-      <p className="text-light-100">
-        Please complete all fields to schedule your appointment.
-      </p>
+    <div className="flex flex-col gap-6 max-w-2xl mx-auto">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          Book Your Appointment
+        </h1>
+        <p className="text-gray-600">
+          Choose your preferred branch, barber, and service to schedule your
+          appointment.
+        </p>
+      </div>
 
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(handleSubmit)}
-          className="space-y-6 w-full"
-        >
-          {Object.keys(defaultValues).map((field) => (
-            <FormField
-              key={field}
-              control={form.control}
-              name={field as Path<T>}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="capitalize" style={{ color: "#0a0533" }}>
-                    {APPOINTMENT_FIELD_NAMES[
-                      field.name as keyof typeof APPOINTMENT_FIELD_NAMES
-                    ] ?? field.name}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      required
-                      type={
-                        APPOINTMENT_FIELD_TYPES[
-                          field.name as keyof typeof APPOINTMENT_FIELD_TYPES
-                        ] ?? "text"
-                      }
-                      {...field}
-                      className="form-input "
-                    />
-                  </FormControl>
-                  <FormDescription />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <PersonalInformation form={form} />
+          
+          <BranchSelection 
+            form={form} 
+            appointmentData={appointmentData} 
+            onBranchChange={handleBranchChange} 
+          />
 
-          <Button type="submit" className="form-btn">
-            Submit Appointment
+          {selectedBranch && (
+            <BarberSelection 
+              form={form} 
+              availableBarbers={availableBarbers} 
+              onBarberChange={handleBarberChange} 
+            />
+          )}
+
+          {selectedBarber && (
+            <ServiceSelection 
+              form={form} 
+              appointmentData={appointmentData} 
+            />
+          )}
+
+          {selectedBarber && (
+            <DateTimeSelection 
+              form={form} 
+              appointmentData={appointmentData} 
+              selectedDate={selectedDate} 
+              onDateChange={handleDateChange} 
+              timeSlots={timeSlots} 
+              checkingAvailability={checkingAvailability} 
+              selectedTime={selectedTime} 
+              onTimeSelect={handleTimeSelect} 
+            />
+          )}
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className="w-full h-12 text-lg"
+            disabled={checkingAvailability}
+          >
+            Book Appointment
           </Button>
         </form>
       </Form>

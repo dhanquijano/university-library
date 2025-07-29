@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import BookCover from "@/components/BookCover";
+import BookCover from "@/components/book/BookCover";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";

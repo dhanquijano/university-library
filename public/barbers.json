@@ -1,0 +1,56 @@
+[
+  {
+    "id": "barber-1",
+    "name": "Juan Dela Cruz",
+    "specialties": ["Hair Cut", "Hair Styling", "Shave"],
+    "experience": "8 years",
+    "rating": 4.8,
+    "image": "/images/barber-1.jpg",
+    "branches": ["branch-1", "branch-2"]
+  },
+  {
+    "id": "barber-2",
+    "name": "Pedro Santos",
+    "specialties": ["Hair Cut", "Hair Care", "Spa & Wellness"],
+    "experience": "12 years", 
+    "rating": 4.9,
+    "image": "/images/barber-2.jpg",
+    "branches": ["branch-1", "branch-3"]
+  },
+  {
+    "id": "barber-3",
+    "name": "Miguel Rodriguez",
+    "specialties": ["Hair Styling", "Package Services"],
+    "experience": "6 years",
+    "rating": 4.7,
+    "image": "/images/barber-3.jpg",
+    "branches": ["branch-2", "branch-4"]
+  },
+  {
+    "id": "barber-4",
+    "name": "Carlos Garcia",
+    "specialties": ["Hair Cut", "Shave", "Hair Care"],
+    "experience": "10 years",
+    "rating": 4.8,
+    "image": "/images/barber-4.jpg",
+    "branches": ["branch-2", "branch-5"]
+  },
+  {
+    "id": "barber-5",
+    "name": "Antonio Lopez",
+    "specialties": ["Hair Styling", "Spa & Wellness", "Package Services"],
+    "experience": "15 years",
+    "rating": 5.0,
+    "image": "/images/barber-5.jpg",
+    "branches": ["branch-3", "branch-4", "branch-5"]
+  },
+  {
+    "id": "barber-6",
+    "name": "Roberto Martinez",
+    "specialties": ["Hair Cut", "Hair Care", "Shave"],
+    "experience": "7 years",
+    "rating": 4.6,
+    "image": "/images/barber-6.jpg",
+    "branches": ["branch-1", "branch-5"]
+  }
+] 

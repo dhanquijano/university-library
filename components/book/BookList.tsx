@@ -1,5 +1,5 @@
 import React from "react";
-import BookCard from "@/components/BookCard";
+import BookCard from "@/components/book/BookCard";
 
 interface Props {
   title: string;
