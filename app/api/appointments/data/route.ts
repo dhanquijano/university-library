@@ -4,19 +4,20 @@ import { getAvailableDates } from "@/lib/appointment-utils";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const branchId = searchParams.get('branchId');
+    const branchId = searchParams.get("branchId");
 
-    // Fetch branches and barbers from database APIs, services from JSON
+
     const [branchesResponse, barbersResponse, servicesResponse] = await Promise.all([
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/branches/unified`),
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/barbers`),
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/services.json`)
     ]);
 
+
     const [unifiedBranches, allBarbers, services] = await Promise.all([
       branchesResponse.json(),
       barbersResponse.json(),
-      servicesResponse.json()
+      servicesResponse.json(),
     ]);
 
     // Transform unified branches to appointment format
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest) {
     // Filter barbers based on selected branch
     let barbers = allBarbers;
     if (branchId) {
-      barbers = allBarbers.filter((barber: any) => 
-        barber.branches && barber.branches.includes(branchId)
+      barbers = allBarbers.filter(
+        (barber: any) => barber.branches && barber.branches.includes(branchId),
       );
     }
 
@@ -45,14 +46,14 @@ export async function GET(request: NextRequest) {
         branches,
         barbers,
         services,
-        availableDates
-      }
+        availableDates,
+      },
     });
   } catch (error) {
     console.error("Error fetching appointment data:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch appointment data" },
-      { status: 500 }
+      { status: 500 },
     );
   }
-} 
+}

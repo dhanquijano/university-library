@@ -17,12 +17,8 @@ export const createAppointment = async (data: {
   try {
     // Fetch branch and barber lists
     const [branchesResponse, barbersResponse] = await Promise.all([
-      fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/branches.json`,
-      ),
-      fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/barbers.json`,
-      ),
+      fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/branches.json`),
+      fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/barbers.json`),
     ]);
 
     const [branches, barbers] = await Promise.all([
