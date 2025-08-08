@@ -36,7 +36,7 @@ import {
   CheckCircle,
   Truck,
   AlertTriangle,
-  DollarSign,
+  Coins,
   Calendar,
   User
 } from "lucide-react";
@@ -68,10 +68,10 @@ interface PurchaseOrdersProps {
   orders: PurchaseOrder[];
   suppliers: string[];
   branches: string[];
-  lowStockItems: Array<{ id: string; name: string; currentQuantity: number; reorderThreshold: number }>;
+  lowStockItems: Array<{ id: string; name: string; currentQuantity: number; reorderThreshold: number; supplier: string; branch: string; unitPrice: number }>;
   users: string[];
   onCreateOrder: (order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'requestedDate'>) => void;
-  onUpdateOrderStatus: (orderId: string, status: PurchaseOrder['status']) => void;
+  onUpdateOrderStatus: (orderId: string, status: PurchaseOrder['status']) => Promise<void>;
 }
 
 const PurchaseOrders = ({ 
@@ -130,6 +130,7 @@ const PurchaseOrders = ({
       requestedBy: newOrder.requestedBy,
       notes: newOrder.notes,
       branch: newOrder.branch,
+      status: 'requested' as const,
     };
 
     onCreateOrder(order);
@@ -158,17 +159,36 @@ const PurchaseOrders = ({
         )
       });
     } else {
+      // Check if the new item has the same supplier and branch as existing items
+      if (newOrder.items.length > 0) {
+        const firstItem = lowStockItems.find(i => i.id === newOrder.items[0].itemId);
+        if (firstItem && (firstItem.supplier !== item.supplier || firstItem.branch !== item.branch)) {
+          alert(`Cannot add ${item.name} - it has a different supplier (${item.supplier}) or branch (${item.branch}) than the items already in the order. Please create a separate order for items with different suppliers or branches.`);
+          return;
+        }
+      }
+
       const newItem: PurchaseOrderItem = {
         itemId: item.id,
         itemName: item.name,
         quantity: 1,
-        unitPrice: 0, // This would be fetched from supplier catalog
-        totalPrice: 0,
+        unitPrice: item.unitPrice || 0, // Use the inventory item's unit price
+        totalPrice: (item.unitPrice || 0) * 1, // Calculate total price
       };
-      setNewOrder({
+      
+      // Auto-set supplier and branch based on the first item added
+      const updatedOrder = {
         ...newOrder,
         items: [...newOrder.items, newItem]
-      });
+      };
+      
+      // If this is the first item, set supplier and branch automatically
+      if (newOrder.items.length === 0) {
+        updatedOrder.supplier = item.supplier;
+        updatedOrder.branch = item.branch;
+      }
+      
+      setNewOrder(updatedOrder);
     }
   };
 
@@ -216,7 +236,7 @@ const PurchaseOrders = ({
               Create Order
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl text-white">
             <DialogHeader>
               <DialogTitle>Create Purchase Order</DialogTitle>
               <DialogDescription>
@@ -224,39 +244,25 @@ const PurchaseOrders = ({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <Select value={newOrder.supplier} onValueChange={(value) => setNewOrder({ ...newOrder, supplier: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier} value={supplier}>
-                          {supplier}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="branch">Branch</Label>
-                  <Select value={newOrder.branch} onValueChange={(value) => setNewOrder({ ...newOrder, branch: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branches.map((branch) => (
-                        <SelectItem key={branch} value={branch}>
-                          {branch}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
+                             <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-1">
+                   <Label htmlFor="supplier">Supplier</Label>
+                   <div className="p-3 bg-gray-100 rounded-md">
+                     <span className="text-sm font-medium">
+                       {newOrder.supplier || "Select items to auto-set supplier"}
+                     </span>
+                   </div>
+                 </div>
+                 <div className="space-y-1">
+                   <Label htmlFor="branch">Branch</Label>
+                   <div className="p-3 bg-gray-100 rounded-md">
+                     <span className="text-sm font-medium">
+                       {newOrder.branch || "Select items to auto-set branch"}
+                     </span>
+                   </div>
+                 </div>
+               </div>
+              <div className="space-y-1">
                 <Label htmlFor="requestedBy">Requested By</Label>
                 <Select value={newOrder.requestedBy} onValueChange={(value) => setNewOrder({ ...newOrder, requestedBy: value })}>
                   <SelectTrigger>
@@ -272,27 +278,41 @@ const PurchaseOrders = ({
                 </Select>
               </div>
               
-              {/* Low Stock Items */}
-              <div>
-                <Label>Add Items from Low Stock</Label>
+                             {/* Low Stock Items */}
+               <div>
+                 <Label>Add Items from Low Stock</Label>
+                 <p className="text-sm text-gray-500 mb-2">
+                   Select items to automatically set supplier and branch. All items in an order must have the same supplier and branch.
+                 </p>
                 <div className="mt-2 space-y-2">
-                  {lowStockItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-2 border rounded">
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-gray-500">
-                          Current: {item.currentQuantity} | Threshold: {item.reorderThreshold}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => addItemToOrder(item.id)}
-                        disabled={newOrder.items.some(i => i.itemId === item.id)}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  ))}
+                                     {lowStockItems.map((item) => {
+                     const isCompatible = newOrder.items.length === 0 || 
+                       (newOrder.supplier === item.supplier && newOrder.branch === item.branch);
+                     const isAlreadyAdded = newOrder.items.some(i => i.itemId === item.id);
+                     
+                     return (
+                       <div key={item.id} className={`flex items-center justify-between p-2 border rounded ${
+                         !isCompatible ? 'opacity-50 bg-gray-50' : ''
+                       }`}>
+                         <div>
+                           <div className="font-medium">{item.name}</div>
+                           <div className="text-sm text-gray-500">
+                             Current: {item.currentQuantity} | Threshold: {item.reorderThreshold}
+                           </div>
+                                                       <div className="text-xs text-gray-400">
+                              Supplier: {item.supplier} | Branch: {item.branch} | Unit Price: ₱{item.unitPrice.toLocaleString()}
+                            </div>
+                         </div>
+                         <Button
+                           size="sm"
+                           onClick={() => addItemToOrder(item.id)}
+                           disabled={isAlreadyAdded || !isCompatible}
+                         >
+                           {isAlreadyAdded ? 'Added' : isCompatible ? 'Add' : 'Incompatible'}
+                         </Button>
+                       </div>
+                     );
+                   })}
                 </div>
               </div>
 
@@ -302,10 +322,11 @@ const PurchaseOrders = ({
                   <Label>Order Items</Label>
                   <div className="mt-2 space-y-2">
                     {newOrder.items.map((item) => (
-                      <div key={item.itemId} className="flex items-center gap-4 p-2 border rounded">
-                        <div className="flex-1">
-                          <div className="font-medium">{item.itemName}</div>
-                        </div>
+                                             <div key={item.itemId} className="flex items-center gap-4 p-2 border rounded">
+                         <div className="flex-1">
+                           <div className="font-medium">{item.itemName}</div>
+                           <div className="text-xs text-gray-500">Unit Price: ₱{item.unitPrice.toLocaleString()}</div>
+                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-xs">Qty:</Label>
                           <Input
@@ -342,10 +363,11 @@ const PurchaseOrders = ({
                 </div>
               )}
 
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <Textarea
                   id="notes"
+                  className="text-black"
                   value={newOrder.notes}
                   onChange={(e) => setNewOrder({ ...newOrder, notes: e.target.value })}
                   placeholder="Additional notes for this order..."
@@ -357,9 +379,12 @@ const PurchaseOrders = ({
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateOrder} disabled={newOrder.items.length === 0}>
-                Create Order
-              </Button>
+                             <Button 
+                 onClick={handleCreateOrder} 
+                 disabled={newOrder.items.length === 0 || !newOrder.supplier || !newOrder.branch}
+               >
+                 Create Order
+               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -406,8 +431,8 @@ const PurchaseOrders = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      {order.totalAmount.toLocaleString()}
+                      <Coins className="h-3 w-3" />
+                      ₱{order.totalAmount.toLocaleString()}
                     </div>
                   </TableCell>
                   <TableCell>{order.branch}</TableCell>
@@ -442,14 +467,21 @@ const PurchaseOrders = ({
                           </Button>
                         </>
                       )}
-                      {order.status === 'ordered' && (
-                        <Button
-                          size="sm"
-                          onClick={() => onUpdateOrderStatus(order.id, 'received')}
-                        >
-                          Mark Received
-                        </Button>
-                      )}
+                                             {order.status === 'ordered' && (
+                         <Button
+                           size="sm"
+                           onClick={() => onUpdateOrderStatus(order.id, 'received')}
+                           title="This will update inventory stock and create stock-in transactions"
+                         >
+                           Mark Received
+                         </Button>
+                       )}
+                       {order.status === 'received' && (
+                         <div className="text-xs text-green-600 flex items-center gap-1">
+                           <CheckCircle className="h-3 w-3" />
+                           Stock Updated
+                         </div>
+                       )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -509,7 +541,7 @@ const PurchaseOrders = ({
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-purple-500" />
+            <Coins className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">

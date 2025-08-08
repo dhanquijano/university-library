@@ -21,6 +21,7 @@ import InventoryDashboard from "@/components/admin/inventory/InventoryDashboard"
 import ItemManagement from "@/components/admin/inventory/ItemManagement";
 import StockMovement from "@/components/admin/inventory/StockMovement";
 import PurchaseOrders from "@/components/admin/inventory/PurchaseOrders";
+import InventorySettings from "@/components/admin/inventory/InventorySettings";
 
 // Mock data - in real app, this would come from API
 const mockInventoryStats = {
@@ -190,77 +191,401 @@ const mockPurchaseOrders = [
 
 const mockCategories = ["Tools", "Hair Products", "Cleaning Supplies", "Accessories"];
 const mockSuppliers = ["Barber Supply Co.", "Beauty Supplies Inc.", "Professional Tools Ltd.", "Hair Care Plus"];
-const mockBranches = ["Main Branch", "Downtown Branch", "Mall Branch"];
+const mockBranches = [
+  "Sanbry Main Branch",
+  "Sanbry Makati", 
+  "Sanbry BGC",
+  "Sanbry Ortigas",
+  "Sanbry Alabang"
+];
 const mockUsers = ["Admin User", "Manager Sarah", "Barber John", "Barber Mike"];
 
 const InventoryPage = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [inventoryItems, setInventoryItems] = useState(mockInventoryItems);
-  const [stockTransactions, setStockTransactions] = useState(mockStockTransactions);
-  const [purchaseOrders, setPurchaseOrders] = useState(mockPurchaseOrders);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [stockTransactions, setStockTransactions] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Settings state
+  const [categories, setCategories] = useState<string[]>(mockCategories);
+  const [suppliers, setSuppliers] = useState<string[]>(mockSuppliers);
+  const [branches, setBranches] = useState<string[]>([]);
 
-  const handleAddItem = (item: any) => {
-    const newItem = {
-      ...item,
-      id: Date.now().toString(),
-    };
-    setInventoryItems([...inventoryItems, newItem]);
-    toast.success("Item added successfully");
+  // Helper function to calculate correct status based on quantity and reorder threshold
+  const calculateItemStatus = (quantity: number, reorderThreshold: number) => {
+    if (quantity === 0) return 'out-of-stock';
+    if (quantity <= reorderThreshold) return 'low-stock';
+    return 'in-stock';
   };
 
-  const handleUpdateItem = (id: string, updates: any) => {
-    setInventoryItems(inventoryItems.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-    toast.success("Item updated successfully");
+  // Fetch data from APIs
+  useEffect(() => {
+    fetchInventoryItems();
+    fetchStockTransactions();
+    fetchPurchaseOrders();
+    fetchBranches();
+  }, []);
+
+  const fetchInventoryItems = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/inventory/items');
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Recalculate status based on current quantity and reorder threshold
+        const itemsWithCorrectStatus = data.map((item: any) => ({
+          ...item,
+          status: calculateItemStatus(item.quantity, item.reorderThreshold)
+        }));
+        
+        setInventoryItems(itemsWithCorrectStatus);
+        console.log(`Loaded ${data.length} inventory items from database`);
+      } else {
+        console.error('Failed to fetch inventory items');
+        toast.error('Failed to load inventory items');
+        // Fallback to mock data if database fails
+        setInventoryItems(mockInventoryItems);
+      }
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      toast.error('Error loading inventory items');
+      // Fallback to mock data if API fails
+      setInventoryItems(mockInventoryItems);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setInventoryItems(inventoryItems.filter(item => item.id !== id));
-    toast.success("Item deleted successfully");
+  const fetchStockTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/inventory/stock-transactions');
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.length > 0) {
+          setStockTransactions(data);
+          console.log(`Loaded ${data.length} stock transactions from database`);
+        } else {
+          console.log('No stock transactions found in database, using mock data');
+          // Use mock data formatted to match the expected interface
+          const mockTransactionData = [
+            {
+              id: "1",
+              itemId: "1",
+              itemName: "Professional Hair Clippers",
+              type: "in",
+              quantity: 10,
+              previousQuantity: 5,
+              newQuantity: 15,
+              user: "Admin User",
+              userId: "admin-id",
+              notes: "Restock from supplier",
+              reason: "Restock",
+              branch: "Main Branch",
+              timestamp: "2024-01-15T10:30:00Z",
+            },
+            {
+              id: "2",
+              itemId: "2",
+              itemName: "Hair Shampoo",
+              type: "out",
+              quantity: 5,
+              previousQuantity: 13,
+              newQuantity: 8,
+              user: "Barber John",
+              userId: "barber-id",
+              notes: "Used during haircut service",
+              reason: "Used during service",
+              branch: "Main Branch",
+              timestamp: "2024-01-15T09:15:00Z",
+            },
+            {
+              id: "3",
+              itemId: "3",
+              itemName: "Styling Gel",
+              type: "in",
+              quantity: 20,
+              previousQuantity: 0,
+              newQuantity: 20,
+              user: "Manager Sarah",
+              userId: "manager-id",
+              notes: "Emergency restock",
+              reason: "Emergency Restock",
+              branch: "Main Branch",
+              timestamp: "2024-01-15T08:45:00Z",
+            }
+          ];
+          setStockTransactions(mockTransactionData);
+        }
+      } else {
+        console.error('Failed to fetch stock transactions');
+        toast.error('Failed to load stock transactions');
+        // Fallback to mock data if API fails
+        setStockTransactions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching stock transactions:', error);
+      toast.error('Error loading stock transactions');
+      // Fallback to mock data if API fails
+      setStockTransactions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddTransaction = (transaction: any) => {
-    const newTransaction = {
-      ...transaction,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-    };
-    setStockTransactions([newTransaction, ...stockTransactions]);
-    
-    // Update item quantity
-    setInventoryItems(inventoryItems.map(item => 
-      item.id === transaction.itemId 
-        ? { ...item, quantity: transaction.newQuantity }
-        : item
-    ));
-    
-    toast.success("Transaction recorded successfully");
+  const fetchPurchaseOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/inventory/purchase-orders');
+      if (response.ok) {
+        const data = await response.json();
+        setPurchaseOrders(data);
+        console.log(`Loaded ${data.length} purchase orders from database`);
+      } else {
+        console.error('Failed to fetch purchase orders');
+        toast.error('Failed to load purchase orders');
+      }
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
+      toast.error('Error loading purchase orders');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateOrder = (order: any) => {
-    const newOrder = {
-      ...order,
-      id: Date.now().toString(),
-      orderNumber: `PO-2024-${String(purchaseOrders.length + 1).padStart(3, '0')}`,
-      requestedDate: new Date().toISOString(),
-    };
-    setPurchaseOrders([newOrder, ...purchaseOrders]);
-    toast.success("Purchase order created successfully");
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('/api/inventory/branches');
+      if (response.ok) {
+        const data = await response.json();
+        // Extract branch names from the API response
+        const branchNames = data.map((branch: any) => branch.name);
+        setBranches(branchNames);
+        console.log(`Loaded ${branchNames.length} branches from database`);
+      } else {
+        console.error('Failed to fetch branches');
+        // Fallback to mock branches if API fails
+        setBranches(mockBranches);
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+      // Fallback to mock branches if API fails
+      setBranches(mockBranches);
+    }
   };
 
-  const handleUpdateOrderStatus = (orderId: string, status: any) => {
-    setPurchaseOrders(purchaseOrders.map(order => 
-      order.id === orderId 
-        ? { 
-            ...order, 
-            status,
-            orderedDate: status === 'ordered' ? new Date().toISOString() : order.orderedDate,
-            receivedDate: status === 'received' ? new Date().toISOString() : order.receivedDate,
-          }
-        : order
-    ));
-    toast.success(`Order status updated to ${status}`);
+  const handleAddItem = async (item: any) => {
+    try {
+      console.log('Received item data in handleAddItem:', item);
+      console.log('Branch value being sent to API:', item.branch);
+      
+      const response = await fetch('/api/inventory/items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...item,
+          // Use the branch selected by the user in the form
+        }),
+      });
+
+      if (response.ok) {
+        const newItem = await response.json();
+        toast.success("Item added successfully");
+        
+        // Recalculate status for the new item
+        const itemWithCorrectStatus = {
+          ...newItem,
+          status: calculateItemStatus(newItem.quantity, newItem.reorderThreshold)
+        };
+        
+        // Add to local state with correct status
+        setInventoryItems([...inventoryItems, itemWithCorrectStatus]);
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to add item");
+      }
+    } catch (error) {
+      console.error('Error creating item:', error);
+      toast.error("Error adding item");
+    }
+  };
+
+  const handleUpdateItem = async (id: string, updates: any) => {
+    try {
+      const response = await fetch(`/api/inventory/items/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        toast.success("Item updated successfully");
+        
+        // Recalculate status for the updated item
+        const itemWithCorrectStatus = {
+          ...updatedItem,
+          status: calculateItemStatus(updatedItem.quantity, updatedItem.reorderThreshold)
+        };
+        
+        // Update local state with the corrected status
+        setInventoryItems(inventoryItems.map(item => 
+          item.id === id ? itemWithCorrectStatus : item
+        ));
+      } else {
+        const error = await response.json();
+        console.error('Update failed with error:', error);
+        toast.error(error.error || "Failed to update item");
+        // Log the detailed error information for debugging
+        if (error.missingFields) {
+          console.error('Missing fields:', error.missingFields);
+          console.error('Field values:', error.fieldValues);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast.error("Error updating item");
+    }
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    try {
+      const response = await fetch(`/api/inventory/items/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success("Item deleted successfully");
+        
+        // Remove from local state
+        setInventoryItems(inventoryItems.filter(item => item.id !== id));
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to delete item");
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error("Error deleting item");
+    }
+  };
+
+  const handleAddTransaction = async (transaction: any) => {
+    try {
+      const response = await fetch('/api/inventory/stock-transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...transaction,
+          userId: 'admin-user-id', // TODO: Get from session
+          branch: 'Main Branch', // TODO: Get from user context
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success("Transaction recorded successfully");
+        
+        // Refresh both transactions and items list to get updated quantities
+        fetchStockTransactions();
+        fetchInventoryItems();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to record transaction");
+      }
+    } catch (error) {
+      console.error('Error creating transaction:', error);
+      toast.error("Error recording transaction");
+    }
+  };
+
+  const handleCreateOrder = async (order: any) => {
+    try {
+      const response = await fetch('/api/inventory/purchase-orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...order,
+          requestedBy: 'admin-user-id', // TODO: Get from session
+          branch: order.branch, // Use the branch selected by the user
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success("Purchase order created successfully");
+        
+        // Refresh the purchase orders list
+        fetchPurchaseOrders();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to create purchase order");
+      }
+    } catch (error) {
+      console.error('Error creating purchase order:', error);
+      toast.error("Error creating purchase order");
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, status: any) => {
+    try {
+      const response = await fetch(`/api/inventory/purchase-orders/${orderId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Order status updated to ${status}`);
+        
+        // Update local state with the updated order
+        setPurchaseOrders(purchaseOrders.map((order: any) => 
+          order.id === orderId 
+            ? { 
+                ...order, 
+                status: result.order.status,
+                orderedDate: result.order.orderedDate,
+                receivedDate: result.order.receivedDate,
+              }
+            : order
+        ));
+
+        // If order was marked as received, refresh inventory and transactions
+        if (status === 'received') {
+          toast.success('Inventory updated with received items');
+          // Refresh inventory items and stock transactions
+          fetchInventoryItems();
+          fetchStockTransactions();
+        }
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to update order status");
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error("Error updating order status");
+    }
+  };
+
+  // Settings handlers
+  const handleUpdateCategories = (newCategories: string[]) => {
+    setCategories(newCategories);
+  };
+
+  const handleUpdateSuppliers = (newSuppliers: string[]) => {
+    setSuppliers(newSuppliers);
   };
 
   const lowStockItems = inventoryItems
@@ -270,7 +595,112 @@ const InventoryPage = () => {
       name: item.name,
       currentQuantity: item.quantity,
       reorderThreshold: item.reorderThreshold,
+      supplier: item.supplier,
+      branch: item.branch,
+      unitPrice: parseFloat(item.unitPrice || '0'),
     }));
+
+  // Calculate real inventory statistics from database data
+  const calculateRealStats = () => {
+    const totalItems = inventoryItems.length;
+    const lowStockCount = inventoryItems.filter(item => item.quantity <= item.reorderThreshold).length;
+    const outOfStockCount = inventoryItems.filter(item => item.quantity === 0).length;
+    const totalValue = inventoryItems.reduce((sum, item) => sum + (item.quantity * parseFloat(item.unitPrice || '0')), 0);
+    const recentTransactionsCount = stockTransactions.length;
+    const pendingOrdersCount = purchaseOrders.filter(order => order.status === 'requested' || order.status === 'ordered').length;
+    
+    return {
+      totalItems,
+      lowStockItems: lowStockCount,
+      outOfStockItems: outOfStockCount,
+      expiringSoonItems: 0, // TODO: Calculate based on expiration dates
+      totalValue: Math.round(totalValue),
+      recentTransactions: recentTransactionsCount,
+      pendingOrders: pendingOrdersCount,
+      activeSuppliers: [...new Set(inventoryItems.map(item => item.supplier))].length,
+    };
+  };
+
+  // Build unified recent activity from items, stock transactions, and purchase orders
+  const getRealRecentActivity = () => {
+    // Stock movements
+    const stockActivity = (stockTransactions || []).map((t: any) => ({
+      id: `tx-${t.id}`,
+      action: t.type === 'in' ? 'Stock In' : 'Stock Out',
+      item: t.itemName || 'Unknown Item',
+      quantity: t.quantity,
+      user: t.user || 'Unknown User',
+      timestamp: t.timestamp,
+      type: t.type as 'in' | 'out',
+    }));
+
+    // Item updates (use updatedAt when available)
+    const itemActivity = (inventoryItems || [])
+      .filter((it: any) => it.updatedAt || it.createdAt)
+      .map((it: any) => ({
+        id: `item-${it.id}`,
+        action: (it.createdAt && it.updatedAt && it.createdAt === it.updatedAt) ? 'Item Added' : 'Item Updated',
+        item: it.name,
+        quantity: it.quantity ?? 0,
+        user: 'System',
+        timestamp: (it.updatedAt || it.createdAt),
+        type: 'update' as const,
+      }));
+
+    // Purchase order lifecycle events
+    const poActivity = (purchaseOrders || []).flatMap((po: any) => {
+      const totalUnits = (po.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 0), 0);
+      const requested: any[] = po.requestedDate ? [{
+        id: `po-req-${po.id}`,
+        action: 'PO Requested',
+        item: po.orderNumber || po.supplier || 'Purchase Order',
+        quantity: totalUnits,
+        user: po.requestedBy || 'User',
+        timestamp: po.requestedDate,
+        type: 'update' as const,
+      }] : [];
+      const ordered: any[] = po.orderedDate ? [{
+        id: `po-ord-${po.id}`,
+        action: 'PO Ordered',
+        item: po.orderNumber || po.supplier || 'Purchase Order',
+        quantity: totalUnits,
+        user: po.requestedBy || 'User',
+        timestamp: po.orderedDate,
+        type: 'update' as const,
+      }] : [];
+      const received: any[] = po.receivedDate ? [{
+        id: `po-rcv-${po.id}`,
+        action: 'PO Received',
+        item: po.orderNumber || po.supplier || 'Purchase Order',
+        quantity: totalUnits,
+        user: po.requestedBy || 'User',
+        timestamp: po.receivedDate,
+        type: 'in' as const,
+      }] : [];
+      // If cancelled, use updatedAt as a fallback timestamp
+      const cancelled: any[] = (po.status === 'cancelled') ? [{
+        id: `po-cancel-${po.id}`,
+        action: 'PO Cancelled',
+        item: po.orderNumber || po.supplier || 'Purchase Order',
+        quantity: totalUnits,
+        user: po.requestedBy || 'User',
+        timestamp: po.updatedAt || po.requestedDate || new Date().toISOString(),
+        type: 'delete' as const,
+      }] : [];
+      return [...requested, ...ordered, ...received, ...cancelled];
+    });
+
+    // Merge, sort by time desc, take latest 10
+    const merged = [...stockActivity, ...itemActivity, ...poActivity]
+      .filter(a => !!a.timestamp)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 10);
+
+    return merged;
+  };
+
+  const realStats = calculateRealStats();
+  const realRecentActivity = getRealRecentActivity();
 
   return (
     <div className="container mx-auto p-6">
@@ -305,16 +735,16 @@ const InventoryPage = () => {
 
         <TabsContent value="dashboard" className="space-y-6">
           <InventoryDashboard 
-            stats={mockInventoryStats}
-            recentActivity={mockRecentActivity}
+            stats={realStats}
+            recentActivity={realRecentActivity}
           />
         </TabsContent>
 
         <TabsContent value="items" className="space-y-6">
           <ItemManagement 
             items={inventoryItems}
-            categories={mockCategories}
-            suppliers={mockSuppliers}
+            categories={categories}
+            suppliers={suppliers}
             onAddItem={handleAddItem}
             onUpdateItem={handleUpdateItem}
             onDeleteItem={handleDeleteItem}
@@ -333,73 +763,25 @@ const InventoryPage = () => {
         <TabsContent value="orders" className="space-y-6">
           <PurchaseOrders 
             orders={purchaseOrders}
-            suppliers={mockSuppliers}
-            branches={mockBranches}
+            suppliers={suppliers}
+            branches={branches}
             lowStockItems={lowStockItems}
             users={mockUsers}
             onCreateOrder={handleCreateOrder}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onUpdateOrderStatus={async (orderId: string, status: any) => {
+              await handleUpdateOrderStatus(orderId, status);
+            }}
           />
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  User Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Manage user roles and permissions for inventory management.
-                </p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 border rounded">
-                    <span>Admin</span>
-                    <Badge>Full Access</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-2 border rounded">
-                    <span>Manager</span>
-                    <Badge variant="secondary">Limited Access</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-2 border rounded">
-                    <span>Staff</span>
-                    <Badge variant="outline">View Only</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  Notifications
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Configure inventory alerts and notifications.
-                </p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span>Low Stock Alerts</span>
-                    <Badge className="bg-green-100 text-green-800">Enabled</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Expiration Alerts</span>
-                    <Badge className="bg-green-100 text-green-800">Enabled</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Order Status Updates</span>
-                    <Badge className="bg-green-100 text-green-800">Enabled</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <InventorySettings 
+            categories={categories}
+            suppliers={suppliers}
+            users={mockUsers}
+            onUpdateCategories={handleUpdateCategories}
+            onUpdateSuppliers={handleUpdateSuppliers}
+          />
         </TabsContent>
       </Tabs>
     </div>

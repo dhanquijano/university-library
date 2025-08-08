@@ -1,1 +1,0 @@
-ALTER TABLE "appointments" ALTER COLUMN "services" SET DATA TYPE text[];

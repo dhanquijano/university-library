@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_branches" ADD COLUMN "hours" text;

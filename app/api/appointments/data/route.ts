@@ -6,20 +6,28 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get("branchId");
 
-    // Fetch data from JSON files
 
-    const [branchesResponse, barbersResponse, servicesResponse] =
-      await Promise.all([
-        fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/branches.json`),
-        fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/barbers.json`),
-        fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/services.json`),
-      ]);
+    const [branchesResponse, barbersResponse, servicesResponse] = await Promise.all([
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/branches/unified`),
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/barbers`),
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/services.json`)
+    ]);
 
-    const [branches, allBarbers, services] = await Promise.all([
+
+    const [unifiedBranches, allBarbers, services] = await Promise.all([
       branchesResponse.json(),
       barbersResponse.json(),
       servicesResponse.json(),
     ]);
+
+    // Transform unified branches to appointment format
+    const branches = unifiedBranches.map((branch: any) => ({
+      id: branch.originalId || branch.id,
+      name: branch.name,
+      address: branch.address,
+      phone: branch.phone,
+      hours: branch.hours
+    }));
 
     // Filter barbers based on selected branch
     let barbers = allBarbers;
