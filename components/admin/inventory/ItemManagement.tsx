@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +35,7 @@ import {
   Package, 
   AlertTriangle,
   Calendar,
-  DollarSign
+  Coins
 } from "lucide-react";
 
 interface InventoryItem {
@@ -49,27 +49,46 @@ interface InventoryItem {
   supplier: string;
   expirationDate?: string;
   status: 'in-stock' | 'low-stock' | 'out-of-stock';
+  branch: string;
 }
 
 interface ItemManagementProps {
   items: InventoryItem[];
   categories: string[];
   suppliers: string[];
-  onAddItem: (item: Omit<InventoryItem, 'id'>) => void;
-  onUpdateItem: (id: string, item: Partial<InventoryItem>) => void;
-  onDeleteItem: (id: string) => void;
+  onAddItem: (item: any) => Promise<void>;
+  onUpdateItem: (id: string, updates: any) => Promise<void>;
+  onDeleteItem: (id: string) => Promise<void>;
 }
 
 const ItemManagement = ({ 
-  items, 
-  categories, 
-  suppliers, 
-  onAddItem, 
-  onUpdateItem, 
-  onDeleteItem 
+  items = [], 
+  categories = [], 
+  suppliers = [],
+  onAddItem,
+  onUpdateItem,
+  onDeleteItem
 }: ItemManagementProps) => {
+  const [branches, setBranches] = useState<string[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  
+  // Helper function to calculate correct status based on quantity and reorder threshold
+  const calculateItemStatus = (quantity: number, reorderThreshold: number) => {
+    if (quantity === 0) return 'out-of-stock';
+    if (quantity <= reorderThreshold) return 'low-stock';
+    return 'in-stock';
+  };
+  
+  // Ensure editingItem stays in sync when items are updated from parent
+  useEffect(() => {
+    if (editingItem) {
+      const updatedItem = items.find(item => item.id === editingItem.id);
+      if (updatedItem) {
+        setEditingItem(updatedItem);
+      }
+    }
+  }, [items, editingItem?.id]);
   const [newItem, setNewItem] = useState({
     name: '',
     sku: '',
@@ -79,7 +98,26 @@ const ItemManagement = ({
     unitPrice: 0,
     supplier: '',
     expirationDate: '',
+    branch: '',
   });
+
+  // Fetch branches from API
+  useEffect(() => {
+    fetch('/api/inventory/branches')
+      .then(res => res.json())
+      .then(data => setBranches(data.map((branch: any) => branch.name)))
+      .catch(error => {
+        console.error('Error fetching branches:', error);
+        // Fallback to match the real branch names from branches.json
+        setBranches([
+          'Sanbry Main Branch',
+          'Sanbry Makati', 
+          'Sanbry BGC',
+          'Sanbry Ortigas',
+          'Sanbry Alabang'
+        ]);
+      });
+  }, []);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -94,36 +132,60 @@ const ItemManagement = ({
     }
   };
 
-  const handleAddItem = () => {
-    const item = {
-      ...newItem,
-      status: newItem.quantity === 0 ? 'out-of-stock' : 
-              newItem.quantity <= newItem.reorderThreshold ? 'low-stock' : 'in-stock'
-    };
-    onAddItem(item);
-    setNewItem({
-      name: '',
-      sku: '',
-      category: '',
-      quantity: 0,
-      reorderThreshold: 10,
-      unitPrice: 0,
-      supplier: '',
-      expirationDate: '',
-    });
-    setIsAddDialogOpen(false);
+  const handleAddItem = async () => {
+    try {
+      // Validate that required fields are filled
+      if (!newItem.name || !newItem.sku || !newItem.category || !newItem.supplier || !newItem.branch) {
+        alert('Please fill in all required fields including branch selection');
+        return;
+      }
+
+      const item = {
+        ...newItem,
+        status: calculateItemStatus(newItem.quantity, newItem.reorderThreshold)
+      };
+      
+      console.log('Adding item with branch:', item.branch);
+      console.log('Full item data:', item);
+      
+      await onAddItem(item);
+      setNewItem({
+        name: '', sku: '', category: '', quantity: 0, reorderThreshold: 10, unitPrice: 0, supplier: '', expirationDate: '', branch: '',
+      });
+      setIsAddDialogOpen(false);
+    } catch (error) {
+      console.error('Error adding item:', error);
+    }
   };
 
-  const handleUpdateItem = () => {
+  const handleUpdateItem = async () => {
     if (editingItem) {
-      const updatedItem = {
-        ...editingItem,
-        status: editingItem.quantity === 0 ? 'out-of-stock' : 
-                editingItem.quantity <= editingItem.reorderThreshold ? 'low-stock' : 'in-stock'
-      };
-      onUpdateItem(editingItem.id, updatedItem);
-      setEditingItem(null);
+      try {
+        // Only send the fields that should be updated, with proper types
+        const updatedItem = {
+          name: editingItem.name,
+          sku: editingItem.sku,
+          category: editingItem.category,
+          quantity: parseInt(editingItem.quantity.toString()) || 0,
+          reorderThreshold: parseInt(editingItem.reorderThreshold.toString()) || 10,
+          unitPrice: parseFloat(editingItem.unitPrice.toString()) || 0,
+          supplier: editingItem.supplier,
+          expirationDate: editingItem.expirationDate || null,
+          branch: editingItem.branch,
+          status: calculateItemStatus(editingItem.quantity, editingItem.reorderThreshold)
+        };
+        
+        console.log('Sending update data:', updatedItem);
+        await onUpdateItem(editingItem.id, updatedItem);
+        setEditingItem(null);
+      } catch (error) {
+        console.error('Error updating item:', error);
+      }
     }
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    await onDeleteItem(id);
   };
 
   return (
@@ -141,7 +203,7 @@ const ItemManagement = ({
               Add Item
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md text-white">
             <DialogHeader>
               <DialogTitle>Add New Item</DialogTitle>
               <DialogDescription>
@@ -149,7 +211,7 @@ const ItemManagement = ({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="name">Item Name</Label>
                 <Input
                   id="name"
@@ -158,7 +220,7 @@ const ItemManagement = ({
                   placeholder="e.g., Professional Hair Clippers"
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="sku">SKU/ID</Label>
                 <Input
                   id="sku"
@@ -167,7 +229,7 @@ const ItemManagement = ({
                   placeholder="e.g., HC-001"
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="category">Category</Label>
                 <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
                   <SelectTrigger>
@@ -183,7 +245,7 @@ const ItemManagement = ({
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="space-y-1">
                   <Label htmlFor="quantity">Quantity</Label>
                   <Input
                     id="quantity"
@@ -192,7 +254,7 @@ const ItemManagement = ({
                     onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })}
                   />
                 </div>
-                <div>
+                <div className="space-y-1">
                   <Label htmlFor="reorderThreshold">Reorder Threshold</Label>
                   <Input
                     id="reorderThreshold"
@@ -202,7 +264,7 @@ const ItemManagement = ({
                   />
                 </div>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="unitPrice">Unit Price (₱)</Label>
                 <Input
                   id="unitPrice"
@@ -211,7 +273,7 @@ const ItemManagement = ({
                   onChange={(e) => setNewItem({ ...newItem, unitPrice: parseFloat(e.target.value) || 0 })}
                 />
               </div>
-              <div>
+              <div className="space-y-1" >
                 <Label htmlFor="supplier">Supplier</Label>
                 <Select value={newItem.supplier} onValueChange={(value) => setNewItem({ ...newItem, supplier: value })}>
                   <SelectTrigger>
@@ -221,6 +283,21 @@ const ItemManagement = ({
                     {suppliers.map((supplier) => (
                       <SelectItem key={supplier} value={supplier}>
                         {supplier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="branch">Branch *</Label>
+                <Select value={newItem.branch} onValueChange={(value) => setNewItem({ ...newItem, branch: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -240,7 +317,12 @@ const ItemManagement = ({
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddItem}>Add Item</Button>
+              <Button 
+                onClick={handleAddItem}
+                disabled={!newItem.name || !newItem.sku || !newItem.category || !newItem.supplier || !newItem.branch}
+              >
+                Add Item
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -265,6 +347,7 @@ const ItemManagement = ({
                 <TableHead>Status</TableHead>
                 <TableHead>Unit Price</TableHead>
                 <TableHead>Supplier</TableHead>
+                <TableHead>Branch</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -295,11 +378,12 @@ const ItemManagement = ({
                   <TableCell>{getStatusBadge(item.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      {item.unitPrice.toLocaleString()}
+                      <Coins className="h-3 w-3" />
+                      ₱{item.unitPrice.toLocaleString()}
                     </div>
                   </TableCell>
                   <TableCell>{item.supplier}</TableCell>
+                  <TableCell>{item.branch}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button
@@ -312,7 +396,7 @@ const ItemManagement = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => onDeleteItem(item.id)}
+                        onClick={() => handleDeleteItem(item.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -327,7 +411,7 @@ const ItemManagement = ({
 
       {/* Edit Dialog */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md text-white">
           <DialogHeader>
             <DialogTitle>Edit Item</DialogTitle>
             <DialogDescription>
@@ -336,7 +420,7 @@ const ItemManagement = ({
           </DialogHeader>
           {editingItem && (
             <div className="space-y-4">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="edit-name">Item Name</Label>
                 <Input
                   id="edit-name"
@@ -344,7 +428,7 @@ const ItemManagement = ({
                   onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="edit-sku">SKU/ID</Label>
                 <Input
                   id="edit-sku"
@@ -352,7 +436,7 @@ const ItemManagement = ({
                   onChange={(e) => setEditingItem({ ...editingItem, sku: e.target.value })}
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="edit-category">Category</Label>
                 <Select value={editingItem.category} onValueChange={(value) => setEditingItem({ ...editingItem, category: value })}>
                   <SelectTrigger>
@@ -377,7 +461,7 @@ const ItemManagement = ({
                     onChange={(e) => setEditingItem({ ...editingItem, quantity: parseInt(e.target.value) || 0 })}
                   />
                 </div>
-                <div>
+                <div className="space-y-1">
                   <Label htmlFor="edit-reorderThreshold">Reorder Threshold</Label>
                   <Input
                     id="edit-reorderThreshold"
@@ -387,7 +471,7 @@ const ItemManagement = ({
                   />
                 </div>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="edit-unitPrice">Unit Price (₱)</Label>
                 <Input
                   id="edit-unitPrice"
@@ -396,7 +480,7 @@ const ItemManagement = ({
                   onChange={(e) => setEditingItem({ ...editingItem, unitPrice: parseFloat(e.target.value) || 0 })}
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="edit-supplier">Supplier</Label>
                 <Select value={editingItem.supplier} onValueChange={(value) => setEditingItem({ ...editingItem, supplier: value })}>
                   <SelectTrigger>
@@ -406,6 +490,21 @@ const ItemManagement = ({
                     {suppliers.map((supplier) => (
                       <SelectItem key={supplier} value={supplier}>
                         {supplier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-branch">Branch</Label>
+                <Select value={editingItem.branch} onValueChange={(value) => setEditingItem({ ...editingItem, branch: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
                       </SelectItem>
                     ))}
                   </SelectContent>

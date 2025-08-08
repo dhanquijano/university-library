@@ -1,6 +1,6 @@
 {
-  "id": "c39da43f-e8f0-4979-b704-df76e201b26b",
-  "prevId": "3a3eee89-5be8-4277-b674-8678aa92b1a6",
+  "id": "94890629-b100-4752-99c4-3c42cb686ede",
+  "prevId": "c39da43f-e8f0-4979-b704-df76e201b26b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -347,21 +347,7 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "inventory_branches_manager_id_users_id_fk": {
-          "name": "inventory_branches_manager_id_users_id_fk",
-          "tableFrom": "inventory_branches",
-          "tableTo": "users",
-          "columnsFrom": [
-            "manager_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "inventory_branches_name_unique": {

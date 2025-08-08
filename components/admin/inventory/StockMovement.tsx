@@ -150,7 +150,7 @@ const StockMovement = ({
               Add Transaction
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md text-white">
             <DialogHeader>
               <DialogTitle>Add Stock Transaction</DialogTitle>
               <DialogDescription>
@@ -158,7 +158,7 @@ const StockMovement = ({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="item">Item</Label>
                 <Select value={newTransaction.itemId} onValueChange={(value) => setNewTransaction({ ...newTransaction, itemId: value })}>
                   <SelectTrigger>
@@ -173,7 +173,7 @@ const StockMovement = ({
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="type">Transaction Type</Label>
                 <Select value={newTransaction.type} onValueChange={(value) => setNewTransaction({ ...newTransaction, type: value as 'in' | 'out' })}>
                   <SelectTrigger>
@@ -195,7 +195,7 @@ const StockMovement = ({
                   min="1"
                 />
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="reason">Reason</Label>
                 <Select value={newTransaction.reason} onValueChange={(value) => setNewTransaction({ ...newTransaction, reason: value })}>
                   <SelectTrigger>
@@ -210,7 +210,7 @@ const StockMovement = ({
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="user">Performed By</Label>
                 <Select value={newTransaction.user} onValueChange={(value) => setNewTransaction({ ...newTransaction, user: value })}>
                   <SelectTrigger>
@@ -225,10 +225,11 @@ const StockMovement = ({
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="space-y-1">
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <Textarea
                   id="notes"
+                  className="text-black"
                   value={newTransaction.notes}
                   onChange={(e) => setNewTransaction({ ...newTransaction, notes: e.target.value })}
                   placeholder="Additional details about this transaction..."

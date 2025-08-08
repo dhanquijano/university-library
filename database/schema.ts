@@ -8,6 +8,7 @@ import {
   date,
   pgEnum,
   timestamp,
+  decimal,
 } from "drizzle-orm/pg-core";
 
 export const STATUS_ENUM = pgEnum("status", [
@@ -21,13 +22,13 @@ export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
   "RETURNED",
 ]);
 
+
+
 export const users = pgTable("users", {
   id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: text("email").notNull().unique(),
-  universityId: integer("university_id").notNull().unique(),
   password: text("password").notNull(),
-  universityCard: text("university_card").notNull(),
   status: STATUS_ENUM("status").default("PENDING"),
   role: ROLE_ENUM("role").default("USER"),
   lastActivityDate: date("last_activity_date").defaultNow(),
@@ -84,4 +85,101 @@ export const appointments = pgTable("appointments", {
   services: text("services").notNull(),
 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// Inventory Management Tables
+export const inventoryItems = pgTable("inventory_items", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  sku: text("sku").notNull().unique(),
+  category: text("category").notNull(),
+  quantity: integer("quantity").notNull().default(0),
+  reorderThreshold: integer("reorder_threshold").notNull().default(10),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  supplier: text("supplier").notNull(),
+  expirationDate: timestamp("expiration_date"),
+  status: text("status", { enum: ["in-stock", "low-stock", "out-of-stock"] }).notNull().default("in-stock"),
+  branch: text("branch").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const stockTransactions = pgTable("stock_transactions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  itemId: text("item_id").notNull().references(() => inventoryItems.id),
+  type: text("type", { enum: ["in", "out"] }).notNull(),
+  quantity: integer("quantity").notNull(),
+  previousQuantity: integer("previous_quantity").notNull(),
+  newQuantity: integer("new_quantity").notNull(),
+  userId: text("user_id").notNull().references(() => users.id),
+  notes: text("notes"),
+  reason: text("reason").notNull(),
+  branch: text("branch").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orderNumber: text("order_number").notNull().unique(),
+  supplier: text("supplier").notNull(),
+  status: text("status", { enum: ["requested", "ordered", "received", "cancelled"] }).notNull().default("requested"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  requestedBy: text("requested_by").notNull().references(() => users.id),
+  requestedDate: timestamp("requested_date").defaultNow(),
+  orderedDate: timestamp("ordered_date"),
+  receivedDate: timestamp("received_date"),
+  notes: text("notes"),
+  branch: text("branch").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const purchaseOrderItems = pgTable("purchase_order_items", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orderId: text("order_id").notNull().references(() => purchaseOrders.id),
+  itemId: text("item_id").notNull().references(() => inventoryItems.id),
+  itemName: text("item_name").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const suppliers = pgTable("suppliers", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  contactPerson: text("contact_person"),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const inventoryCategories = pgTable("inventory_categories", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const inventoryBranches = pgTable("inventory_branches", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull().unique(),
+  address: text("address"),
+  phone: text("phone"),
+  hours: text("hours"), // Added hours field for operating hours
+  managerId: text("manager_id"), // Removed foreign key constraint to avoid complications
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const barbers = pgTable("barbers", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  specialties: text("specialties").notNull(), // JSON string of specialties array
+  experience: text("experience").notNull(),
+  rating: decimal("rating", { precision: 3, scale: 1 }).notNull(),
+  image: text("image"),
+  branches: text("branches").notNull(), // JSON string of branch IDs array
+  createdAt: timestamp("created_at").defaultNow(),
 });

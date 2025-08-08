@@ -7,7 +7,7 @@ import {
   TrendingUp, 
   Clock,
   Activity,
-  DollarSign,
+  Coins,
   Users,
   ShoppingCart
 } from "lucide-react";
@@ -105,7 +105,7 @@ const InventoryDashboard = ({ stats, recentActivity }: InventoryDashboardProps) 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
+            <Coins className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
@@ -170,27 +170,37 @@ const InventoryDashboard = ({ stats, recentActivity }: InventoryDashboardProps) 
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{getActionIcon(activity.type)}</span>
-                  <div>
-                    <p className="font-medium">{activity.action}</p>
-                    <p className="text-sm text-gray-600">
-                      {activity.item} - {activity.quantity} units
+            {recentActivity && recentActivity.length > 0 ? (
+              recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{getActionIcon(activity.type)}</span>
+                    <div>
+                      <p className="font-medium">{activity.action}</p>
+                      <p className="text-sm text-gray-600">
+                        {activity.item} - {activity.quantity} units
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <Badge className={getActionColor(activity.type)}>
+                      {activity.type.toUpperCase()}
+                    </Badge>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {activity.user} • {new Date(activity.timestamp).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <Badge className={getActionColor(activity.type)}>
-                    {activity.type.toUpperCase()}
-                  </Badge>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {activity.user} • {new Date(activity.timestamp).toLocaleDateString()}
-                  </p>
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Activity className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-lg font-medium mb-2">No Recent Activity</p>
+                <p className="text-sm">
+                  Stock transactions will appear here once you start recording inventory movements.
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </CardContent>
       </Card>

@@ -33,15 +33,36 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1752513706944,
-      "tag": "0004_massive_alice",
+      "when": 1754169568088,
+      "tag": "0007_remove_university_columns",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1753563156573,
-      "tag": "0005_nosy_scrambler",
+      "when": 1754236834531,
+      "tag": "0005_clammy_natasha_romanoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1754238877246,
+      "tag": "0006_spotty_longshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1754239912944,
+      "tag": "0007_tough_ben_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1754241211999,
+      "tag": "0008_pale_rocket_raccoon",
       "breakpoints": true
     }
   ]
