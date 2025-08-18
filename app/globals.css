@@ -63,6 +63,7 @@
   --color-light-600: #f9fafb;
   --color-light-700: #e2e8f0;
   --color-light-800: #f8fafc;
+  --color-light-900: #D2F5F7;
 
   --color-dark-100: #16191e;
   --color-dark-200: #3a354e;
@@ -281,7 +282,7 @@ bg-dark-600 mt-3 min-h-14 w-full font-bebas-neue text-base text-primary
   @apply gradient-vertical mx-auto flex max-w-xl flex-col gap-6 rounded-lg p-10;
 }
 
-@utility auth-illustration {
+@utility barber-illustration {
   @apply sticky h-40 w-full sm:top-0 sm:h-screen sm:flex-1;
 }
 

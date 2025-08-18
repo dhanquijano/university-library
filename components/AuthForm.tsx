@@ -70,10 +70,10 @@ const AuthForm = <T extends FieldValues>({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold texti-white">
+      <h1 className="text-2xl font-semibold text-light-800">
         {isSignIn ? "Welcome back to BookWise" : "Create your library account"}
       </h1>
-      <p className="text-light-100">
+      <p className="text-light-800">
         {isSignIn
           ? "Access the vast collection of resources, and stay updated"
           : "Please complete all fields to create your library account"}
@@ -90,7 +90,7 @@ const AuthForm = <T extends FieldValues>({
               name={field as Path<T>}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="capitalize">
+                  <FormLabel className="capitalize text-light-800">
                     {FIELD_NAMES[field.name as keyof typeof FIELD_NAMES]}
                   </FormLabel>
                   <FormControl>
@@ -103,9 +103,6 @@ const AuthForm = <T extends FieldValues>({
                       className="form-input"
                     />
                   </FormControl>
-                  <FormDescription>
-                    This is your public display name.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -118,7 +115,7 @@ const AuthForm = <T extends FieldValues>({
         </form>
       </Form>
 
-      <p className="text-center text-base font-medium">
+      <p className="text-center text-base font-medium text-light-800">
         {isSignIn ? "New to BookWise? " : "Already have an account? "}
 
         <Link

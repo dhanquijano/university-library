@@ -21,9 +21,9 @@ const Layout = async ({ children }: { children: ReactNode }) => {
         </div>
       </section>
 
-      <section className="auth-illustration">
+      <section className="barber-illustration">
         <Image
-          src="/images/auth-illustration.png"
+          src="/images/barber-illustration.png"
           alt="auth illustration"
           height={1000}
           width={1000}
