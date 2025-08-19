@@ -7,14 +7,14 @@ export async function GET(request: NextRequest) {
     const branchId = searchParams.get("branchId");
 
 
-    const [branchesResponse, barbersResponse, servicesResponse] = await Promise.all([
+  const [branchesResponse, barbersResponse, servicesResponse] = await Promise.all([
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/branches/unified`),
       fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/barbers`),
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/services.json`)
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/services`)
     ]);
 
 
-    const [unifiedBranches, allBarbers, services] = await Promise.all([
+  const [unifiedBranches, allBarbers, services] = await Promise.all([
       branchesResponse.json(),
       barbersResponse.json(),
       servicesResponse.json(),
@@ -40,12 +40,17 @@ export async function GET(request: NextRequest) {
     // Get available dates
     const availableDates = getAvailableDates();
 
-    return NextResponse.json({
+  return NextResponse.json({
       success: true,
       data: {
         branches,
         barbers,
-        services,
+        services: services.map((s: any) => ({
+          category: s.category,
+          title: s.title,
+          description: s.description,
+          price: String(s.price),
+        })),
         availableDates,
       },
     });

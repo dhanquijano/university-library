@@ -64,6 +64,20 @@
       "when": 1754241211999,
       "tag": "0008_pale_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1754898254950,
+      "tag": "0009_dark_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1754905042961,
+      "tag": "0010_material_mandarin",
+      "breakpoints": true
     }
   ]
 }

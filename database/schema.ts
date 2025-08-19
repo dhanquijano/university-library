@@ -183,3 +183,13 @@ export const barbers = pgTable("barbers", {
   branches: text("branches").notNull(), // JSON string of branch IDs array
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Services Catalog (migrated from public/services.json)
+export const servicesCatalog = pgTable("services_catalog", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+});

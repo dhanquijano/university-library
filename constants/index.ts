@@ -34,6 +34,16 @@ export const adminSideBarLinks = [
     text: "Inventory Management",
   },
   {
+    img: "/icons/admin/receipt.svg",
+    route: "/admin/sales",
+    text: "Sales Management",
+  },
+  {
+    img: "/icons/admin/calendar.svg",
+    route: "/admin/scheduling",
+    text: "Staff Scheduling",
+  },
+  {
     img: "/icons/admin/user.svg",
     route: "/admin/account-requests",
     text: "Account Requests",
