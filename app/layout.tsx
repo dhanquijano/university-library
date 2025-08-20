@@ -26,7 +26,7 @@ const bebasNeue = localFont({
 export const metadata: Metadata = {
   title: "Sanbry Men Grooming House",
   description:
-    "BookWise is a book borrowing university library management solution",
+    "SANBRY has become known for its exceptional service, cleanliness, and attention to detail, all of which are a reflection of the owners’ passion for their business.",
 };
 
 const RootLayout = async ({ children }: { children: ReactNode }) => {
