@@ -105,6 +105,25 @@
 
 
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1s ease-in;
+}
+
+.sectionFade {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.7s ease, visibility 0.7s ease;
+}
+
+.sectionFade.show {
+  opacity: 1;
+  visibility: visible;
+}
 
 @utility form-btn {
   @apply bg-primary! text-dark-100! hover:bg-primary! inline-flex! min-h-14! w-full! items-center! justify-center! rounded-md! px-6! py-2! font-bold! text-base! cursor-pointer!;
