@@ -1,50 +1,47 @@
 import React from "react";
 import { Service } from "@/lib/services";
 
-const groupByCategory = (services: Service[]): Record<string, Service[]> => {
-  return services.reduce(
-    (acc, service) => {
-      const { category } = service;
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(service);
-      return acc;
-    },
-    {} as Record<string, Service[]>,
-  );
-};
-
 interface Props {
   title: string;
   services: Service[];
 }
 
+// Helper to group services by category
+const groupByCategory = (services: Service[]) => {
+  return services.reduce((acc, service) => {
+    if (!acc[service.category]) acc[service.category] = [];
+    acc[service.category].push(service);
+    return acc;
+  }, {} as Record<string, Service[]>);
+};
+
 const ServicesList = ({ title, services }: Props) => {
   const grouped = groupByCategory(services);
 
   return (
-    <section className="font-bebas-neue text-4xl text-light-100">
-      <h2 className="font-bebas-neue text-4xl text-light-100">{title}</h2>
-
-      {Object.entries(grouped).map(([category, group]) => (
-        <div key={category} className="mb-12">
-          <h3 className="text-2xl font-semibold mb-4 capitalize">{category}</h3>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {group.map((service) => (
-              <li
-                key={service.title}
-                className="flex justify-between border-b pb-4 border-gray-700"
-              >
-                <div>
-                  <h4 className="text-xl font-semibold">{service.title}</h4>
-                  <p className="text-sm" style={{ color: "#4a1515"}}>{service.description}</p>
+    <section className="font-bebas-neue text-2xl text-light-100 w-full">
+      <h2 className="font-bebas-neue text-2xl text-light-100 mb-4 text-center">{title}</h2>
+      <div className="flex flex-col overflow-y-auto gap-6 px-2 py-2 bg-light-200 rounded-lg shadow max-h-[600px] w-full">
+        {Object.entries(grouped).map(([category, group]) => (
+          <div key={category}>
+            <h3 className="text-lg font-bold text-dark-900 mb-2">{category}</h3>
+            <div className="flex flex-col gap-3">
+              {group.map((service) => (
+                <div
+                  key={service.title}
+                  className="flex flex-col items-center justify-between bg-white rounded-lg shadow p-2 min-h-[80px]"
+                >
+                  <h4 className="text-lg font-bold text-dark-900 mb-1 text-center">{service.title}</h4>
+                  <p className="text-sm text-dark-700 mb-1 text-center">{service.description}</p>
+                  <span className="text-base font-bold text-dark-900">{service.price}</span>
                 </div>
-                <span className="text-lg font-semibold">{service.price}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 };
+
 export default ServicesList;

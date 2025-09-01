@@ -23,45 +23,65 @@ const Page = () => {
       <hr className="border-t-2 border-dark-100 my-8 mx-auto max-w-screen-xl" />
 
       {/* Services Section */}
-      <section
-        ref={servicesFade.ref}
-        className={`mx-auto max-w-screen-xl px-4 py-16 transition-opacity duration-1000 ${
-          servicesFade.isVisible ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <h1 className="font-bebas-neue text-6xl text-light-100 text-center">
-          SANBRY MEN GROOMING HOUSE SERVICES
-        </h1>
-        <h2 className="font-bebas-neue text-3xl text-light-100 text-center mt-10 mb-10">
-          Welcome to Sanbry Men Grooming House, where exceptional grooming meets unmatched service. We’re proud to offer a range of professional haircuts, shaves, and beard treatments tailored just for you. Explore our services and experience the care and style you deserve.
-        </h2>
-        <Image
-          src="/images/menu-services.jpg"
-          alt="menu"
-          width={350}
-          height={350}
-          className="mx-auto"
-        />
-        <ServicesList title="Our Services" services={services} />
-      </section>
+      <div className="flex justify-center">
+        <section
+          ref={servicesFade.ref}
+          className={`transition-opacity duration-1000 ${
+            servicesFade.isVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="bg-light-400 rounded-xl shadow-lg flex flex-col md:flex-row items-center w-full max-w-7xl mx-auto px-16 py-14 gap-12">
+            <div className="flex-1">
+              <h1 className="font-bebas-neue text-4xl text-dark-900 mb-4 text-center md:text-left">
+                SANBRY MEN GROOMING HOUSE SERVICES
+              </h1>
+              <h2 className="font-bebas-neue text-lg text-dark-900 mb-6 text-center md:text-left">
+                Welcome to Sanbry Men Grooming House, where exceptional grooming
+                meets unmatched service. We’re proud to offer a range of
+                professional haircuts, shaves, and beard treatments tailored just
+                for you. Explore our services and experience the care and style
+                you deserve.
+              </h2>
+              <ServicesList title="Our Services" services={services} />
+            </div>
+            <div className="flex-shrink-0">
+              <Image
+                src="/images/menu-services.jpg"
+                alt="menu"
+                width={300}
+                height={300}
+                className="rounded-lg object-cover"
+              />
+            </div>
+          </div>
+        </section>
+      </div>
 
       <hr className="border-t-2 border-dark-100 my-8 mx-auto max-w-screen-xl" />
 
       {/* Stylists Section */}
-      <section
-        ref={stylistsFade.ref}
-        className={`mx-auto max-w-screen-xl px-4 py-16 transition-opacity duration-1000 ${
-          stylistsFade.isVisible ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <h1 className="font-bebas-neue text-6xl text-light-100 text-center">
-          SANBRY MEN GROOMING HOUSE STYLISTS
-        </h1>
-        <h2 className="font-bebas-neue text-3xl text-light-100 text-center mt-10 mb-10">
-          At Sanbry Men Grooming House, we provide customers with the best stylists on the house. Get to know our stylists and book an appointment with them today!
-        </h2>
-        <StylistList name="Our Stylists" stylists={stylists} />
-      </section>
+      <div className="flex justify-center">
+        <section
+          ref={stylistsFade.ref}
+          className={`transition-opacity duration-1000 ${
+            stylistsFade.isVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <div className="bg-light-400 rounded-xl shadow-lg flex flex-col md:flex-row items-center w-full max-w-6xl mx-auto px-16 py-14 gap-12">
+            <div className="flex-1">
+              <h1 className="font-bebas-neue text-4xl text-dark-900 mb-4 text-center md:text-left">
+                SANBRY MEN GROOMING HOUSE STYLISTS
+              </h1>
+              <h2 className="font-bebas-neue text-lg text-dark-900 mb-6 text-center md:text-left">
+                At Sanbry Men Grooming House, we provide customers with the best
+                stylists on the house. Get to know our stylists and book an
+                appointment with them today!
+              </h2>
+              <StylistList name="Our Stylists" stylists={stylists} />
+            </div>
+          </div>
+        </section>
+      </div>
     </>
   );
 };
