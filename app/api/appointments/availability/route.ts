@@ -24,8 +24,14 @@ export async function GET(request: NextRequest) {
     const dayShifts = shifts.filter((s) => s.branchId === branchId && s.barberId === barberId && s.date === date);
     const dayLeaves = leaves.filter((l) => l.barberId === barberId && l.date === date && l.status === "approved");
 
-    const withinAnyShift = (time: string) =>
-      dayShifts.some((s) => time >= s.startTime && time < s.endTime && !(s.breaks || []).some((b: any) => time >= b.startTime && time < b.endTime));
+    const withinAnyShift = (time: string) => {
+      // If no shifts are scheduled, allow all times (default business hours)
+      if (dayShifts.length === 0) return true;
+      
+      // If shifts are scheduled, only allow times within those shifts
+      return dayShifts.some((s) => time >= s.startTime && time < s.endTime && !(s.breaks || []).some((b: any) => time >= b.startTime && time < b.endTime));
+    };
+    
     const notOnLeave = (time: string) =>
       dayLeaves.every((l) => {
         if (!l.startTime || !l.endTime) return false; // full-day leave blocks all

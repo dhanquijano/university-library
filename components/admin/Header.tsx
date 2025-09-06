@@ -9,11 +9,9 @@ const Header = ({ session }: { session: Session }) => {
           {session?.user?.name}
         </h2>
         <p className="text-base text-slate-500">
-          Monitor all appoinments, services, and inventory from here
+          Monitor all appointments, services, and inventory from here
         </p>
       </div>
-
-      <p>Search</p>
     </header>
   );
 };
