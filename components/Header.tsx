@@ -23,7 +23,9 @@ const Header = ({ session }: { session: Session }) => {
         </li>
         {session?.user ? (
           <>
-            {session?.user?.role === "ADMIN" && (
+            {(session?.user?.role === "ADMIN" ||
+              session?.user?.role === "MANAGER" ||
+              session?.user?.role === "STAFF") && (
               <li>
                 <a href="/admin" className="text-lg text-primary">
                   Admin Panel

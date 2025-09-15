@@ -78,6 +78,13 @@
       "when": 1754905042961,
       "tag": "0010_material_mandarin",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1757907251670,
+      "tag": "0011_gifted_eternals",
+      "breakpoints": true
     }
   ]
 }

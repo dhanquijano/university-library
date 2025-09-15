@@ -16,13 +16,11 @@ export const STATUS_ENUM = pgEnum("status", [
   "APPROVED",
   "REJECTED",
 ]);
-export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN"]);
+export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN", "MANAGER", "STAFF"]);
 export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
   "BORROWED",
   "RETURNED",
 ]);
-
-
 
 export const users = pgTable("users", {
   id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
@@ -89,29 +87,41 @@ export const appointments = pgTable("appointments", {
 
 // Inventory Management Tables
 export const inventoryItems = pgTable("inventory_items", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   sku: text("sku").notNull().unique(),
   category: text("category").notNull(),
   quantity: integer("quantity").notNull().default(0),
   reorderThreshold: integer("reorder_threshold").notNull().default(10),
-  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull().default("0"),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
   supplier: text("supplier").notNull(),
   expirationDate: timestamp("expiration_date"),
-  status: text("status", { enum: ["in-stock", "low-stock", "out-of-stock"] }).notNull().default("in-stock"),
+  status: text("status", { enum: ["in-stock", "low-stock", "out-of-stock"] })
+    .notNull()
+    .default("in-stock"),
   branch: text("branch").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const stockTransactions = pgTable("stock_transactions", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  itemId: text("item_id").notNull().references(() => inventoryItems.id),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
   type: text("type", { enum: ["in", "out"] }).notNull(),
   quantity: integer("quantity").notNull(),
   previousQuantity: integer("previous_quantity").notNull(),
   newQuantity: integer("new_quantity").notNull(),
-  userId: text("user_id").notNull().references(() => users.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
   notes: text("notes"),
   reason: text("reason").notNull(),
   branch: text("branch").notNull(),
@@ -119,12 +129,22 @@ export const stockTransactions = pgTable("stock_transactions", {
 });
 
 export const purchaseOrders = pgTable("purchase_orders", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   orderNumber: text("order_number").notNull().unique(),
   supplier: text("supplier").notNull(),
-  status: text("status", { enum: ["requested", "ordered", "received", "cancelled"] }).notNull().default("requested"),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull().default("0"),
-  requestedBy: text("requested_by").notNull().references(() => users.id),
+  status: text("status", {
+    enum: ["requested", "ordered", "received", "cancelled"],
+  })
+    .notNull()
+    .default("requested"),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
+  requestedBy: text("requested_by")
+    .notNull()
+    .references(() => users.id),
   requestedDate: timestamp("requested_date").defaultNow(),
   orderedDate: timestamp("ordered_date"),
   receivedDate: timestamp("received_date"),
@@ -135,9 +155,15 @@ export const purchaseOrders = pgTable("purchase_orders", {
 });
 
 export const purchaseOrderItems = pgTable("purchase_order_items", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  orderId: text("order_id").notNull().references(() => purchaseOrders.id),
-  itemId: text("item_id").notNull().references(() => inventoryItems.id),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  orderId: text("order_id")
+    .notNull()
+    .references(() => purchaseOrders.id),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
   itemName: text("item_name").notNull(),
   quantity: integer("quantity").notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
@@ -146,7 +172,9 @@ export const purchaseOrderItems = pgTable("purchase_order_items", {
 });
 
 export const suppliers = pgTable("suppliers", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   contactPerson: text("contact_person"),
   email: text("email"),
@@ -157,14 +185,18 @@ export const suppliers = pgTable("suppliers", {
 });
 
 export const inventoryCategories = pgTable("inventory_categories", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const inventoryBranches = pgTable("inventory_branches", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull().unique(),
   address: text("address"),
   phone: text("phone"),
@@ -174,7 +206,9 @@ export const inventoryBranches = pgTable("inventory_branches", {
 });
 
 export const barbers = pgTable("barbers", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   name: text("name").notNull(),
   specialties: text("specialties").notNull(), // JSON string of specialties array
   experience: text("experience").notNull(),
@@ -186,7 +220,9 @@ export const barbers = pgTable("barbers", {
 
 // Services Catalog (migrated from public/services.json)
 export const servicesCatalog = pgTable("services_catalog", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
   category: text("category").notNull(),
   title: text("title").notNull(),
   description: text("description"),
