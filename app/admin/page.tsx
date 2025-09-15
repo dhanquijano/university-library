@@ -92,12 +92,16 @@ const AdminDashboard = () => {
         fetch('/api/admin/appointments').then(r => r.json()).catch(() => []),
         fetch('/api/inventory/items').then(r => r.json()).catch(() => []),
         fetch('/api/barbers').then(r => r.json()).catch(() => []),
-        fetch('/api/admin/appointments').then(r => r.json()).catch(() => [])
+        fetch('/api/admin/sales').then(r => r.json()).catch(() => [])
       ]);
 
       setAppointments(Array.isArray(appointmentsRes) ? appointmentsRes : []);
       setInventoryItems(Array.isArray(inventoryRes) ? inventoryRes : []);
       setBarbers(Array.isArray(barbersRes) ? barbersRes : []);
+      
+      // Debug logging for sales data
+      console.log('Sales data fetched:', salesRes);
+      console.log('Sales data length:', Array.isArray(salesRes) ? salesRes.length : 'Not an array');
 
       // Calculate statistics
       const today = dayjs().format('YYYY-MM-DD');
@@ -112,13 +116,16 @@ const AdminDashboard = () => {
         completed: appointmentsRes.filter((a: any) => new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()).length || 0
       };
 
-      // Sales stats (using appointments as sales data)
-      const salesData = appointmentsRes || [];
+      // Sales stats (using actual sales data)
+      const salesData = Array.isArray(salesRes) ? salesRes : [];
       const salesStats = {
-        total: salesData.length * 500, // Estimate based on appointments
-        today: salesData.filter((s: any) => s.appointmentDate === today).length * 500,
-        thisWeek: salesData.filter((s: any) => s.appointmentDate >= thisWeek).length * 500,
-        thisMonth: salesData.filter((s: any) => s.appointmentDate >= thisMonth).length * 500
+        total: salesData.reduce((sum: number, s: any) => sum + (parseFloat(s.net) || 0), 0),
+        today: salesData.filter((s: any) => dayjs(s.date).format('YYYY-MM-DD') === today)
+          .reduce((sum: number, s: any) => sum + (parseFloat(s.net) || 0), 0),
+        thisWeek: salesData.filter((s: any) => dayjs(s.date).format('YYYY-MM-DD') >= thisWeek)
+          .reduce((sum: number, s: any) => sum + (parseFloat(s.net) || 0), 0),
+        thisMonth: salesData.filter((s: any) => dayjs(s.date).format('YYYY-MM-DD') >= thisMonth)
+          .reduce((sum: number, s: any) => sum + (parseFloat(s.net) || 0), 0)
       };
 
       // Inventory stats

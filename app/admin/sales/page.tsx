@@ -7,17 +7,44 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Activity, BarChart2, Calendar, Download, Filter, PieChart, TrendingUp } from "lucide-react";
+import {
+  Activity,
+  BarChart2,
+  Calendar,
+  Download,
+  Filter,
+  PieChart,
+  TrendingUp,
+} from "lucide-react";
 
 // This page aggregates sales from appointments as "sales" source data.
 // It provides filters and multiple breakdowns. Export is client-side CSV for now.
 
-type PaymentMethod = "Cash" | "GCash" | "Maya" | "Bank Transfer" | "Card" | "Unknown";
+type PaymentMethod =
+  | "Cash"
+  | "GCash"
+  | "Maya"
+  | "Bank Transfer"
+  | "Card"
+  | "Unknown";
 
 interface SalesRecord {
   id: string;
@@ -46,21 +73,43 @@ const parsePriceFromServices = (services: string): number => {
 
 const toCsv = (rows: any[]) => {
   if (!rows.length) return "";
+  
+  // Helper function to properly escape CSV values
+  const escapeCsvValue = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    const str = String(value);
+    // If the value contains comma, quote, or newline, wrap in quotes and escape internal quotes
+    if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  
   const headers = Object.keys(rows[0]);
-  const body = rows.map((r) => headers.map((h) => JSON.stringify(r[h] ?? "")).join(","));
-  return [headers.join(","), ...body].join("\n");
+  const headerRow = headers.map(escapeCsvValue).join(",");
+  const bodyRows = rows.map((r) =>
+    headers.map((h) => escapeCsvValue(r[h])).join(",")
+  );
+  
+  return [headerRow, ...bodyRows].join("\n");
 };
 
 const SalesManagementPage = () => {
-  const [rangeType, setRangeType] = useState<"daily" | "weekly" | "monthly" | "custom">("daily");
-  const [startDate, setStartDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
+  const [rangeType, setRangeType] = useState<
+    "daily" | "weekly" | "monthly" | "custom"
+  >("daily");
+  const [startDate, setStartDate] = useState<string>(
+    dayjs().format("YYYY-MM-DD"),
+  );
   const [endDate, setEndDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
   const [branchFilter, setBranchFilter] = useState<string>("");
   const [barberFilter, setBarberFilter] = useState<string>("");
   const [paymentFilter, setPaymentFilter] = useState<string>("");
 
   // Daily report states
-  const [dailyReportDate, setDailyReportDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
+  const [dailyReportDate, setDailyReportDate] = useState<string>(
+    dayjs().format("YYYY-MM-DD"),
+  );
   const [dailyReportBranch, setDailyReportBranch] = useState<string>("ALL");
   const [preparedBy, setPreparedBy] = useState<string>("");
   const [dailyNotes, setDailyNotes] = useState<string>("");
@@ -68,20 +117,47 @@ const SalesManagementPage = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [barbers, setBarbers] = useState<any[]>([]);
-  const [selectedBranchForBarbers, setSelectedBranchForBarbers] = useState<string>("ALL");
+  const [selectedBranchForBarbers, setSelectedBranchForBarbers] =
+    useState<string>("ALL");
   const [servicesCatalog, setServicesCatalog] = useState<any[]>([]);
   const [manualSales, setManualSales] = useState<SalesRecord[]>([]);
+
+  // Load persisted manual transactions from backend
+  useEffect(() => {
+    const loadManual = async () => {
+      try {
+        const res = await fetch("/api/admin/sales", { cache: "no-store" });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const normalized = (Array.isArray(rows) ? rows : []).map((r: any) => ({
+          ...r,
+          gross: typeof r.gross === "string" ? parseFloat(r.gross) : r.gross,
+          discount:
+            typeof r.discount === "string"
+              ? parseFloat(r.discount)
+              : r.discount,
+          net: typeof r.net === "string" ? parseFloat(r.net) : r.net,
+          isManual: true,
+        }));
+        setManualSales(normalized);
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadManual();
+  }, []);
 
   // Load data
   useEffect(() => {
     const load = async () => {
       try {
-        const [branchesRes, barbersRes, appointmentsRes, servicesRes] = await Promise.all([
-          fetch("/api/branches/unified").then((r) => r.json()),
-          fetch("/api/barbers").then((r) => r.json()),
-          fetch("/api/admin/appointments").then((r) => r.json()),
-          fetch("/api/services").then((r) => r.json()),
-        ]);
+        const [branchesRes, barbersRes, appointmentsRes, servicesRes] =
+          await Promise.all([
+            fetch("/api/branches/unified").then((r) => r.json()),
+            fetch("/api/barbers").then((r) => r.json()),
+            fetch("/api/admin/appointments").then((r) => r.json()),
+            fetch("/api/services").then((r) => r.json()),
+          ]);
 
         setAppointments(Array.isArray(appointmentsRes) ? appointmentsRes : []);
         setBranches(branchesRes || []);
@@ -94,27 +170,44 @@ const SalesManagementPage = () => {
     load();
   }, []);
 
-  const branchesList = useMemo(() => [...new Set((branches || []).map((b: any) => b.name))], [branches]);
-  const branchOptions = useMemo(() => (branches || []).map((b: any) => ({ id: b.id || b.originalId || b.name, name: b.name })), [branches]);
-  const branchNameById = (id: string) => (branchOptions.find((b) => b.id === id)?.name || id);
+  const branchesList = useMemo(
+    () => [...new Set((branches || []).map((b: any) => b.name))],
+    [branches],
+  );
+  const branchOptions = useMemo(
+    () =>
+      (branches || []).map((b: any) => ({
+        id: b.id || b.originalId || b.name,
+        name: b.name,
+      })),
+    [branches],
+  );
+  const branchNameById = (id: string) =>
+    branchOptions.find((b) => b.id === id)?.name || id;
 
   // Filter barbers by selected branch in the daily report form
   const barbersForBranch = useMemo(() => {
     if (!barbers || barbers.length === 0) return [];
-    if (!selectedBranchForBarbers || selectedBranchForBarbers === 'ALL') return barbers.map((b: any) => b.name);
+    if (!selectedBranchForBarbers || selectedBranchForBarbers === "ALL")
+      return barbers.map((b: any) => b.name);
     // selectedBranchForBarbers is currently a branch NAME. Match against barber.branches which contain IDs.
     // So convert branch name to ID using branchOptions if available.
-    const branchId = (branchOptions.find((bo) => bo.name === selectedBranchForBarbers)?.id) || selectedBranchForBarbers;
-    return barbers.filter((b: any) => (b.branches || []).includes(branchId)).map((b: any) => b.name);
+    const branchId =
+      branchOptions.find((bo) => bo.name === selectedBranchForBarbers)?.id ||
+      selectedBranchForBarbers;
+    return barbers
+      .filter((b: any) => (b.branches || []).includes(branchId))
+      .map((b: any) => b.name);
   }, [barbers, selectedBranchForBarbers, branchOptions]);
 
   // Price helpers from services catalog
   const servicePriceMap = useMemo(() => {
     const map: Record<string, number> = {};
     (servicesCatalog || []).forEach((s: any) => {
-      const priceNum = typeof s.price === 'number' ? s.price : parseFloat(String(s.price));
+      const priceNum =
+        typeof s.price === "number" ? s.price : parseFloat(String(s.price));
       if (!isNaN(priceNum)) {
-        map[(s.title || '').toLowerCase()] = priceNum;
+        map[(s.title || "").toLowerCase()] = priceNum;
       }
     });
     return map;
@@ -124,9 +217,9 @@ const SalesManagementPage = () => {
     if (!titles || titles.length === 0) return 0;
     let sum = 0;
     titles.forEach((t) => {
-      const key = (t || '').toLowerCase();
+      const key = (t || "").toLowerCase();
       const price = servicePriceMap[key];
-      if (typeof price === 'number' && !isNaN(price)) {
+      if (typeof price === "number" && !isNaN(price)) {
         sum += price;
       }
     });
@@ -146,9 +239,13 @@ const SalesManagementPage = () => {
     };
 
     const fromAppointments: SalesRecord[] = (appointments || []).map((a) => {
-      const titles = (a.services || '').split(',').map((t: string) => t.trim()).filter(Boolean);
+      const titles = (a.services || "")
+        .split(",")
+        .map((t: string) => t.trim())
+        .filter(Boolean);
       const catalogGross = computeGrossFromTitles(titles);
-      const gross = catalogGross > 0 ? catalogGross : parsePriceFromServices(a.services);
+      const gross =
+        catalogGross > 0 ? catalogGross : parsePriceFromServices(a.services);
       const discount = 0; // no discount data available
       const net = Math.max(0, gross - discount);
       return {
@@ -162,13 +259,14 @@ const SalesManagementPage = () => {
         discount,
         net,
         paymentMethod: normPayment(a.paymentMethod),
-        status: (new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()) ? "completed" : "pending",
+        status:
+          new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()
+            ? "completed"
+            : "pending",
       } as SalesRecord;
     });
     return [...fromAppointments, ...manualSales];
   }, [appointments, manualSales]);
-
-  
 
   // Adjust date range when rangeType changes
   useEffect(() => {
@@ -190,10 +288,14 @@ const SalesManagementPage = () => {
     const end = dayjs(endDate).endOf("day");
     return sales.filter((s) => {
       const d = dayjs(s.date);
-      const inRange = d.isAfter(start.subtract(1, "millisecond")) && d.isBefore(end.add(1, "millisecond"));
+      const inRange =
+        d.isAfter(start.subtract(1, "millisecond")) &&
+        d.isBefore(end.add(1, "millisecond"));
       const byBranch = branchFilter ? s.branch === branchFilter : true;
       const byBarber = barberFilter ? s.barber === barberFilter : true;
-      const byPayment = paymentFilter ? s.paymentMethod === paymentFilter : true;
+      const byPayment = paymentFilter
+        ? s.paymentMethod === paymentFilter
+        : true;
       return inRange && byBranch && byBarber && byPayment;
     });
   }, [sales, startDate, endDate, branchFilter, barberFilter, paymentFilter]);
@@ -206,28 +308,68 @@ const SalesManagementPage = () => {
   }, [filtered]);
 
   const exportCsv = () => {
-    const csv = toCsv(filtered);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    if (!filtered.length) {
+      toast.error("No data to export");
+      return;
+    }
+    
+    // Format the data for CSV export with proper column names
+    const csvData = filtered.map((record) => ({
+      "Transaction ID": record.id,
+      "Date": dayjs(record.date).format("YYYY-MM-DD"),
+      "Time": record.time || "",
+      "Branch": record.branch,
+      "Barber": record.barber,
+      "Services": record.services,
+      "Gross Amount": record.gross,
+      "Discount": record.discount,
+      "Net Amount": record.net,
+      "Payment Method": record.paymentMethod,
+      "Status": record.status,
+      "Source": record.isManual ? "Manual" : "Appointment",
+      "Notes": record.notes || ""
+    }));
+    
+    const csv = toCsv(csvData);
+    // Add BOM for proper UTF-8 encoding in Excel
+    const csvWithBom = '\uFEFF' + csv;
+    const blob = new Blob([csvWithBom], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `sales-${startDate}-to-${endDate}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Exported CSV");
+    toast.success(`Exported ${filtered.length} records to CSV`);
   };
 
   // Simple visual summaries using tables and badges (charts can be added later)
-  
-  const barbersList = useMemo(() => [...new Set((barbers || []).map((b: any) => b.name))], [barbers]);
+
+  const barbersList = useMemo(
+    () => [...new Set((barbers || []).map((b: any) => b.name))],
+    [barbers],
+  );
 
   const branchBreakdown = useMemo(() => {
-    const grouped: Record<string, { revenue: number; transactions: number; topService: string; peakHour: string }> = {};
+    const grouped: Record<
+      string,
+      {
+        revenue: number;
+        transactions: number;
+        topService: string;
+        peakHour: string;
+      }
+    > = {};
     const serviceCountsByBranch: Record<string, Record<string, number>> = {};
     const hourCountsByBranch: Record<string, Record<string, number>> = {};
 
     filtered.forEach((r) => {
-      grouped[r.branch] ??= { revenue: 0, transactions: 0, topService: '-', peakHour: '-' };
+      grouped[r.branch] ??= {
+        revenue: 0,
+        transactions: 0,
+        topService: "-",
+        peakHour: "-",
+      };
       serviceCountsByBranch[r.branch] ??= {};
       hourCountsByBranch[r.branch] ??= {};
 
@@ -235,24 +377,32 @@ const SalesManagementPage = () => {
       grouped[r.branch].transactions += 1;
 
       // services
-      (r.services || '').split(',').map((s) => s.trim()).filter(Boolean).forEach((svc) => {
-        serviceCountsByBranch[r.branch][svc] = (serviceCountsByBranch[r.branch][svc] || 0) + 1;
-      });
+      (r.services || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((svc) => {
+          serviceCountsByBranch[r.branch][svc] =
+            (serviceCountsByBranch[r.branch][svc] || 0) + 1;
+        });
       // hour
-      const hour = (r.time || '').slice(0,2);
+      const hour = (r.time || "").slice(0, 2);
       if (hour) {
-        hourCountsByBranch[r.branch][hour] = (hourCountsByBranch[r.branch][hour] || 0) + 1;
+        hourCountsByBranch[r.branch][hour] =
+          (hourCountsByBranch[r.branch][hour] || 0) + 1;
       }
     });
 
     Object.keys(grouped).forEach((branch) => {
       const svcCounts = serviceCountsByBranch[branch] || {};
-      const topSvc = Object.entries(svcCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || '-';
+      const topSvc =
+        Object.entries(svcCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
       grouped[branch].topService = topSvc;
 
       const hourCounts = hourCountsByBranch[branch] || {};
-      const topHour = Object.entries(hourCounts).sort((a,b) => b[1]-a[1])[0]?.[0] || '-';
-      grouped[branch].peakHour = topHour === '-' ? '-' : `${topHour}:00`;
+      const topHour =
+        Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "-";
+      grouped[branch].peakHour = topHour === "-" ? "-" : `${topHour}:00`;
     });
 
     return grouped;
@@ -271,9 +421,21 @@ const SalesManagementPage = () => {
   const serviceBreakdown = useMemo(() => {
     const grouped: Record<string, number> = {};
     filtered.forEach((r) => {
-      (r.services || '').split(',').map((s) => s.trim()).filter(Boolean).forEach((svc) => {
-        grouped[svc] = (grouped[svc] || 0) + Math.max(1, Math.round(r.net / ((r.services || '').split(',').filter(Boolean).length || 1)));
-      });
+      (r.services || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((svc) => {
+          grouped[svc] =
+            (grouped[svc] || 0) +
+            Math.max(
+              1,
+              Math.round(
+                r.net /
+                  ((r.services || "").split(",").filter(Boolean).length || 1),
+              ),
+            );
+        });
     });
     return grouped;
   }, [filtered]);
@@ -289,8 +451,11 @@ const SalesManagementPage = () => {
   // Daily report calculations
   const daySales = useMemo(() => {
     return sales.filter((s) => {
-      const isSameDay = dayjs(s.date).isSame(dayjs(dailyReportDate), 'day');
-      const byBranch = dailyReportBranch === 'ALL' ? true : s.branch === branchNameById(dailyReportBranch);
+      const isSameDay = dayjs(s.date).isSame(dayjs(dailyReportDate), "day");
+      const byBranch =
+        dailyReportBranch === "ALL"
+          ? true
+          : s.branch === branchNameById(dailyReportBranch);
       return isSameDay && byBranch;
     });
   }, [sales, dailyReportDate, dailyReportBranch, branchOptions]);
@@ -312,49 +477,68 @@ const SalesManagementPage = () => {
   }, [daySales]);
 
   const exportDailyCsv = () => {
-    const header = [{
-      reportDate: dailyReportDate,
-      branch: dailyReportBranch,
-      preparedBy,
-      notes: dailyNotes,
-      transactions: dayTotals.transactions,
-      gross: dayTotals.gross,
-      discount: dayTotals.discount,
-      net: dayTotals.net,
-    }];
-    const payments = Object.entries(dayPayments).map(([method, amount]) => ({ method, amount }));
-    const rows = [
-      { Section: 'Report Summary' },
-      ...header,
-      { Section: 'Payment Breakdown' },
-      ...payments,
-      { Section: 'Transactions' },
-      ...daySales.map((r) => ({ date: r.date, time: r.time, branch: r.branch, barber: r.barber, services: r.services, gross: r.gross, discount: r.discount, net: r.net, payment: r.paymentMethod, status: r.status }))
-    ];
-    const csv = toCsv(rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    if (!daySales.length) {
+      toast.error("No data to export for this date");
+      return;
+    }
+    
+    // Create a comprehensive daily report CSV with proper structure
+    const csvData = daySales.map((record) => ({
+      "Report Date": dailyReportDate,
+      "Branch": dailyReportBranch === "ALL" ? "ALL" : branchNameById(dailyReportBranch),
+      "Prepared By": preparedBy || "",
+      "Transaction ID": record.id,
+      "Date": dayjs(record.date).format("YYYY-MM-DD"),
+      "Time": record.time || "",
+      "Barber": record.barber,
+      "Services": record.services,
+      "Gross Amount": record.gross,
+      "Discount": record.discount,
+      "Net Amount": record.net,
+      "Payment Method": record.paymentMethod,
+      "Status": record.status,
+      "Source": record.isManual ? "Manual" : "Appointment",
+      "Notes": record.notes || "",
+      "Report Notes": dailyNotes || ""
+    }));
+    
+    const csv = toCsv(csvData);
+    // Add BOM for proper UTF-8 encoding in Excel
+    const csvWithBom = '\uFEFF' + csv;
+    const blob = new Blob([csvWithBom], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const brName = dailyReportBranch === 'ALL' ? 'ALL' : branchNameById(dailyReportBranch);
+    const brName =
+      dailyReportBranch === "ALL" ? "ALL" : branchNameById(dailyReportBranch);
     a.download = `daily-report-${dailyReportDate}-${brName}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Daily report exported");
+    toast.success(`Daily report exported with ${daySales.length} transactions`);
   };
 
   const printDaily = () => {
-    const w = window.open('', '_blank');
+    const w = window.open("", "_blank");
     if (!w) return;
-    const paymentsHtml = Object.entries(dayPayments).map(([m, amt]) => `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${m}</td><td style="padding:4px 8px;border:1px solid #ddd;">₱${(amt as number).toLocaleString()}</td></tr>`).join('');
-    const txRows = daySales.map((r) => `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${dayjs(r.date).format('MMM DD, YYYY')} ${r.time || ''}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.branch}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.barber}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.services}</td><td style=\"padding:4px 8px;border:1px solid #ddd;\">₱${r.net.toLocaleString()}</td></tr>`).join('');
+    const paymentsHtml = Object.entries(dayPayments)
+      .map(
+        ([m, amt]) =>
+          `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${m}</td><td style="padding:4px 8px;border:1px solid #ddd;">₱${(amt as number).toLocaleString()}</td></tr>`,
+      )
+      .join("");
+    const txRows = daySales
+      .map(
+        (r) =>
+          `<tr><td style="padding:4px 8px;border:1px solid #ddd;">${dayjs(r.date).format("MMM DD, YYYY")} ${r.time || ""}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.branch}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.barber}</td><td style="padding:4px 8px;border:1px solid #ddd;">${r.services}</td><td style=\"padding:4px 8px;border:1px solid #ddd;\">₱${r.net.toLocaleString()}</td></tr>`,
+      )
+      .join("");
     w.document.write(`
       <html><head><title>Daily Sales Report</title></head><body>
       <h2>Daily Sales Report</h2>
       <p><strong>Date:</strong> ${dailyReportDate}</p>
-      <p><strong>Branch:</strong> ${dailyReportBranch === 'ALL' ? 'ALL' : branchNameById(dailyReportBranch)}</p>
-      <p><strong>Prepared by:</strong> ${preparedBy || '-'}</p>
-      <p><strong>Notes:</strong> ${dailyNotes || '-'}</p>
+      <p><strong>Branch:</strong> ${dailyReportBranch === "ALL" ? "ALL" : branchNameById(dailyReportBranch)}</p>
+      <p><strong>Prepared by:</strong> ${preparedBy || "-"}</p>
+      <p><strong>Notes:</strong> ${dailyNotes || "-"}</p>
       <h3>Summary</h3>
       <ul>
         <li>Transactions: ${dayTotals.transactions}</li>
@@ -395,22 +579,27 @@ const SalesManagementPage = () => {
   const [txBarber, setTxBarber] = useState<string>("");
   const [txServices, setTxServices] = useState<string>("");
   const [txServicesSelected, setTxServicesSelected] = useState<string[]>([]);
-  const txComputedGross = useMemo(() => computeGrossFromTitles(txServicesSelected), [txServicesSelected, servicesCatalog]);
+  const txComputedGross = useMemo(
+    () => computeGrossFromTitles(txServicesSelected),
+    [txServicesSelected, servicesCatalog],
+  );
   useEffect(() => {
     setTxGross(String(txComputedGross));
   }, [txComputedGross]);
   const [txGross, setTxGross] = useState<string>("0");
   const [txDiscount, setTxDiscount] = useState<string>("0");
   const [txPayment, setTxPayment] = useState<PaymentMethod>("Cash");
-  const [txStatus, setTxStatus] = useState<"completed" | "cancelled" | "refunded" | "pending">("completed");
+  const [txStatus, setTxStatus] = useState<
+    "completed" | "cancelled" | "refunded" | "pending"
+  >("completed");
   const [txNotes, setTxNotes] = useState<string>("");
 
-  const addManualTransaction = () => {
+  const addManualTransaction = async () => {
     if (!txDate || !txTime) {
       toast.error("Date and time are required");
       return;
     }
-    if (!txBranch || txBranch === 'ALL') {
+    if (!txBranch || txBranch === "ALL") {
       toast.error("Please select a branch");
       return;
     }
@@ -421,14 +610,12 @@ const SalesManagementPage = () => {
       return;
     }
     const net = Math.max(0, gross - discount);
-    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : `m-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const record: SalesRecord = {
-      id,
+    const payload = {
       date: txDate,
       time: txTime,
       branch: txBranch,
-      barber: txBarber || 'Walk-in',
-      services: txServicesSelected.join(', '),
+      barber: txBarber || "Walk-in",
+      services: txServicesSelected.join(", "),
       gross,
       discount,
       net,
@@ -437,8 +624,33 @@ const SalesManagementPage = () => {
       isManual: true,
       notes: txNotes,
     };
-    setManualSales((prev) => [record, ...prev]);
-    toast.success("Manual transaction added");
+    try {
+      const res = await fetch("/api/admin/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      const saved = await res.json();
+      const normalized = {
+        ...saved,
+        gross:
+          typeof saved.gross === "string"
+            ? parseFloat(saved.gross)
+            : saved.gross,
+        discount:
+          typeof saved.discount === "string"
+            ? parseFloat(saved.discount)
+            : saved.discount,
+        net: typeof saved.net === "string" ? parseFloat(saved.net) : saved.net,
+        isManual: true,
+      } as SalesRecord;
+      setManualSales((prev) => [normalized, ...prev]);
+      toast.success("Manual transaction added");
+    } catch (e) {
+      toast.error("Failed to save transaction");
+      return;
+    }
     // reset some fields
     setTxServices("");
     setTxServicesSelected([]);
@@ -447,8 +659,17 @@ const SalesManagementPage = () => {
     setTxNotes("");
   };
 
-  const removeManualTransaction = (id: string) => {
-    setManualSales((prev) => prev.filter((r) => r.id !== id));
+  const removeManualTransaction = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/sales?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) throw new Error("Failed");
+      setManualSales((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Removed");
+    } catch (e) {
+      toast.error("Failed to remove");
+    }
   };
 
   return (
@@ -466,12 +687,19 @@ const SalesManagementPage = () => {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-4 w-4" /> Filters
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Select value={rangeType} onValueChange={(v: any) => setRangeType(v)}>
-              <SelectTrigger><SelectValue placeholder="Range" /></SelectTrigger>
+            <Select
+              value={rangeType}
+              onValueChange={(v: any) => setRangeType(v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Range" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="weekly">Weekly</SelectItem>
@@ -479,20 +707,46 @@ const SalesManagementPage = () => {
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            <Select value={branchFilter} onValueChange={(v) => setBranchFilter(v === 'ALL' ? '' : v)}>
-              <SelectTrigger><SelectValue placeholder="All Branches" /></SelectTrigger>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <Select
+              value={branchFilter}
+              onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Branches" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Branches</SelectItem>
-                {branchesList.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                {branchesList.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Select value={barberFilter} onValueChange={(v) => setBarberFilter(v === 'ALL' ? '' : v)}>
-              <SelectTrigger><SelectValue placeholder="All Barbers" /></SelectTrigger>
+            <Select
+              value={barberFilter}
+              onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All Barbers" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All Barbers</SelectItem>
-                {barbersList.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                {barbersList.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -502,32 +756,56 @@ const SalesManagementPage = () => {
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader><CardTitle>Total Gross</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">₱{totals.gross.toLocaleString()}</CardContent>
+          <CardHeader>
+            <CardTitle>Total Gross</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-bold">
+            ₱{totals.gross.toLocaleString()}
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Total Discounts</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">₱{totals.discount.toLocaleString()}</CardContent>
+          <CardHeader>
+            <CardTitle>Total Discounts</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-bold">
+            ₱{totals.discount.toLocaleString()}
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Total Net</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">₱{totals.net.toLocaleString()}</CardContent>
+          <CardHeader>
+            <CardTitle>Total Net</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-bold">
+            ₱{totals.net.toLocaleString()}
+          </CardContent>
         </Card>
       </div>
 
       {/* Breakdowns */}
       <Tabs defaultValue="daily-report" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="branches" className="flex items-center gap-2"><BarChart2 className="h-4 w-4" /> Branches</TabsTrigger>
-          <TabsTrigger value="barbers" className="flex items-center gap-2"><Activity className="h-4 w-4" /> Barbers</TabsTrigger>
-          <TabsTrigger value="services" className="flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Services</TabsTrigger>
-          <TabsTrigger value="payments" className="flex items-center gap-2"><PieChart className="h-4 w-4" /> Payments</TabsTrigger>
-          <TabsTrigger value="daily-report" className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Daily Report</TabsTrigger>
+          <TabsTrigger value="daily-report" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" /> Daily Report
+          </TabsTrigger>
+          <TabsTrigger value="branches" className="flex items-center gap-2">
+            <BarChart2 className="h-4 w-4" /> Branches
+          </TabsTrigger>
+          <TabsTrigger value="barbers" className="flex items-center gap-2">
+            <Activity className="h-4 w-4" /> Barbers
+          </TabsTrigger>
+          <TabsTrigger value="services" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" /> Services
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="flex items-center gap-2">
+            <PieChart className="h-4 w-4" /> Payments
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="branches">
           <Card>
-            <CardHeader><CardTitle>Branch Breakdown</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Branch Breakdown</CardTitle>
+            </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
@@ -544,7 +822,9 @@ const SalesManagementPage = () => {
                     <TableRow key={branch}>
                       <TableCell>{branch}</TableCell>
                       <TableCell>{(v as any).transactions}</TableCell>
-                      <TableCell>₱{(v as any).revenue.toLocaleString()}</TableCell>
+                      <TableCell>
+                        ₱{(v as any).revenue.toLocaleString()}
+                      </TableCell>
                       <TableCell>{(v as any).topService}</TableCell>
                       <TableCell>{(v as any).peakHour}</TableCell>
                     </TableRow>
@@ -557,7 +837,9 @@ const SalesManagementPage = () => {
 
         <TabsContent value="barbers">
           <Card>
-            <CardHeader><CardTitle>Barber Performance</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Barber Performance</CardTitle>
+            </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
@@ -583,7 +865,9 @@ const SalesManagementPage = () => {
 
         <TabsContent value="services">
           <Card>
-            <CardHeader><CardTitle>Service-Based Reporting</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Service-Based Reporting</CardTitle>
+            </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
@@ -593,12 +877,16 @@ const SalesManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(serviceBreakdown).map(([service, revenue]) => (
-                    <TableRow key={service}>
-                      <TableCell>{service}</TableCell>
-                      <TableCell>₱{(revenue as number).toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
+                  {Object.entries(serviceBreakdown).map(
+                    ([service, revenue]) => (
+                      <TableRow key={service}>
+                        <TableCell>{service}</TableCell>
+                        <TableCell>
+                          ₱{(revenue as number).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ),
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -607,7 +895,9 @@ const SalesManagementPage = () => {
 
         <TabsContent value="payments">
           <Card>
-            <CardHeader><CardTitle>Payment Methods</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Payment Methods</CardTitle>
+            </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
@@ -620,7 +910,9 @@ const SalesManagementPage = () => {
                   {Object.entries(paymentBreakdown).map(([method, revenue]) => (
                     <TableRow key={method}>
                       <TableCell>{method}</TableCell>
-                      <TableCell>₱{(revenue as number).toLocaleString()}</TableCell>
+                      <TableCell>
+                        ₱{(revenue as number).toLocaleString()}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -631,34 +923,63 @@ const SalesManagementPage = () => {
 
         <TabsContent value="daily-report">
           <Card>
-            <CardHeader><CardTitle>Create Daily Sales Report</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Create Daily Sales Report</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <Label className="mb-1 block">Report Date</Label>
-                  <Input type="date" value={dailyReportDate} onChange={(e) => setDailyReportDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={dailyReportDate}
+                    onChange={(e) => setDailyReportDate(e.target.value)}
+                  />
                 </div>
-                  <div>
-                    <Label className="mb-1 block">Branch</Label>
-                    <Select value={dailyReportBranch} onValueChange={(v) => { setDailyReportBranch(v); setSelectedBranchForBarbers(v); }}>
-                    <SelectTrigger><SelectValue placeholder="Select Branch" /></SelectTrigger>
+                <div>
+                  <Label className="mb-1 block">Branch</Label>
+                  <Select
+                    value={dailyReportBranch}
+                    onValueChange={(v) => {
+                      setDailyReportBranch(v);
+                      setSelectedBranchForBarbers(v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All Branches</SelectItem>
-                      {branchesList.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                      {branchesList.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label className="mb-1 block">Prepared By</Label>
-                  <Input value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)} placeholder="e.g., Admin User" />
+                  <Input
+                    value={preparedBy}
+                    onChange={(e) => setPreparedBy(e.target.value)}
+                    placeholder="e.g., Admin User"
+                  />
                 </div>
                 <div className="flex items-end">
-                  <Button className="w-full" onClick={exportDailyCsv}>Export CSV</Button>
+                  <Button className="w-full" onClick={exportDailyCsv}>
+                    Export CSV
+                  </Button>
                 </div>
               </div>
               <div>
                 <Label className="mb-1 block">Notes</Label>
-                <Textarea value={dailyNotes} onChange={(e) => setDailyNotes(e.target.value)} placeholder="Optional notes for this report" rows={3} />
+                <Textarea
+                  value={dailyNotes}
+                  onChange={(e) => setDailyNotes(e.target.value)}
+                  placeholder="Optional notes for this report"
+                  rows={3}
+                />
               </div>
 
               {/* Manual Transaction Form */}
@@ -667,29 +988,58 @@ const SalesManagementPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                   <div>
                     <Label className="mb-1 block">Date</Label>
-                    <Input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} />
+                    <Input
+                      type="date"
+                      value={txDate}
+                      onChange={(e) => setTxDate(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label className="mb-1 block">Time</Label>
-                    <Input type="time" value={txTime} onChange={(e) => setTxTime(e.target.value)} />
+                    <Input
+                      type="time"
+                      value={txTime}
+                      onChange={(e) => setTxTime(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label className="mb-1 block">Branch</Label>
-                    <Select value={txBranch} onValueChange={(v) => { setTxBranch(v); setSelectedBranchForBarbers(v); }}>
-                      <SelectTrigger><SelectValue placeholder="Select Branch" /></SelectTrigger>
+                    <Select
+                      value={txBranch}
+                      onValueChange={(v) => {
+                        setTxBranch(v);
+                        setSelectedBranchForBarbers(v);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Branch" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ALL">Select Branch</SelectItem>
-                        {branchesList.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                        {branchesList.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="mb-1 block">Barber</Label>
-                    <Select value={txBarber || 'NONE'} onValueChange={(v) => setTxBarber(v === 'NONE' ? '' : v)}>
-                      <SelectTrigger><SelectValue placeholder="Walk-in / None" /></SelectTrigger>
+                    <Select
+                      value={txBarber || "NONE"}
+                      onValueChange={(v) => setTxBarber(v === "NONE" ? "" : v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Walk-in / None" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NONE">Walk-in / None</SelectItem>
-                        {barbersForBranch.map((b) => (<SelectItem key={b} value={b}>{b}</SelectItem>))}
+                        {barbersForBranch.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -699,25 +1049,50 @@ const SalesManagementPage = () => {
                   </div>
                   <div>
                     <Label className="mb-1 block">Discount</Label>
-                    <Input type="number" min="0" value={txDiscount} onChange={(e) => setTxDiscount(e.target.value)} />
+                    <Input
+                      type="number"
+                      min="0"
+                      value={txDiscount}
+                      onChange={(e) => setTxDiscount(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <Label className="mb-1 block">Payment</Label>
-                    <Select value={txPayment} onValueChange={(v) => setTxPayment(v as PaymentMethod)}>
-                      <SelectTrigger><SelectValue placeholder="Method" /></SelectTrigger>
+                    <Select
+                      value={txPayment}
+                      onValueChange={(v) => setTxPayment(v as PaymentMethod)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Method" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {(["Cash","GCash","Maya","Bank Transfer","Card"] as PaymentMethod[]).map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        {(
+                          [
+                            "Cash",
+                            "GCash",
+                            "Maya",
+                            "Bank Transfer",
+                            "Card",
+                          ] as PaymentMethod[]
+                        ).map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="mb-1 block">Status</Label>
-                    <Select value={txStatus} onValueChange={(v) => setTxStatus(v as any)}>
-                      <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                    <Select
+                      value={txStatus}
+                      onValueChange={(v) => setTxStatus(v as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="completed">completed</SelectItem>
                         <SelectItem value="pending">pending</SelectItem>
@@ -732,62 +1107,106 @@ const SalesManagementPage = () => {
                       {servicesCatalog.map((s: any) => {
                         const checked = txServicesSelected.includes(s.title);
                         return (
-                          <label key={s.id || s.title} className="flex items-center gap-2 py-1 cursor-pointer">
+                          <label
+                            key={s.id || s.title}
+                            className="flex items-center gap-2 py-1 cursor-pointer"
+                          >
                             <input
                               type="checkbox"
                               className="accent-black"
                               checked={checked}
                               onChange={(e) => {
                                 setTxServicesSelected((prev) => {
-                                  if (e.target.checked) return [...prev, s.title];
+                                  if (e.target.checked)
+                                    return [...prev, s.title];
                                   return prev.filter((t) => t !== s.title);
                                 });
                               }}
                             />
                             <span className="flex-1 text-sm">{s.title}</span>
-                            <span className="text-xs text-gray-500">₱{(parseFloat(s.price) || s.price).toLocaleString()}</span>
+                            <span className="text-xs text-gray-500">
+                              ₱
+                              {(
+                                parseFloat(s.price) || s.price
+                              ).toLocaleString()}
+                            </span>
                           </label>
                         );
                       })}
                     </div>
                     {txServicesSelected.length > 0 && (
                       <div className="text-xs text-gray-600 mt-1">
-                        Selected: {txServicesSelected.join(', ')}
+                        Selected: {txServicesSelected.join(", ")}
                       </div>
                     )}
                   </div>
                 </div>
                 <div>
                   <Label className="mb-1 block">Notes</Label>
-                  <Textarea value={txNotes} onChange={(e) => setTxNotes(e.target.value)} placeholder="Optional" rows={2} />
+                  <Textarea
+                    value={txNotes}
+                    onChange={(e) => setTxNotes(e.target.value)}
+                    placeholder="Optional"
+                    rows={2}
+                  />
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => { setTxServices(""); setTxGross("0"); setTxDiscount("0"); setTxNotes(""); }}>Clear</Button>
-                  <Button onClick={addManualTransaction}>Add Transaction</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTxServices("");
+                      setTxGross("0");
+                      setTxDiscount("0");
+                      setTxNotes("");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <Button onClick={addManualTransaction}>
+                    Add Transaction
+                  </Button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
-                  <CardHeader><CardTitle>Transactions</CardTitle></CardHeader>
-                  <CardContent className="text-2xl font-bold">{dayTotals.transactions}</CardContent>
+                  <CardHeader>
+                    <CardTitle>Transactions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-2xl font-bold">
+                    {dayTotals.transactions}
+                  </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle>Gross</CardTitle></CardHeader>
-                  <CardContent className="text-2xl font-bold">₱{dayTotals.gross.toLocaleString()}</CardContent>
+                  <CardHeader>
+                    <CardTitle>Gross</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-2xl font-bold">
+                    ₱{dayTotals.gross.toLocaleString()}
+                  </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle>Discount</CardTitle></CardHeader>
-                  <CardContent className="text-2xl font-bold">₱{dayTotals.discount.toLocaleString()}</CardContent>
+                  <CardHeader>
+                    <CardTitle>Discount</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-2xl font-bold">
+                    ₱{dayTotals.discount.toLocaleString()}
+                  </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader><CardTitle>Net</CardTitle></CardHeader>
-                  <CardContent className="text-2xl font-bold">₱{dayTotals.net.toLocaleString()}</CardContent>
+                  <CardHeader>
+                    <CardTitle>Net</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-2xl font-bold">
+                    ₱{dayTotals.net.toLocaleString()}
+                  </CardContent>
                 </Card>
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" onClick={printDaily}>Print</Button>
+                <Button variant="outline" onClick={printDaily}>
+                  Print
+                </Button>
                 <Button onClick={exportDailyCsv}>Export CSV</Button>
               </div>
 
@@ -811,19 +1230,38 @@ const SalesManagementPage = () => {
                   <TableBody>
                     {daySales.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell>{dayjs(r.date).format("MMM DD, YYYY")}</TableCell>
+                        <TableCell>
+                          {dayjs(r.date).format("MMM DD, YYYY")}
+                        </TableCell>
                         <TableCell>{r.time}</TableCell>
                         <TableCell>{r.branch}</TableCell>
                         <TableCell>{r.barber}</TableCell>
-                        <TableCell className="max-w-[300px] truncate" title={r.services}>{r.services}</TableCell>
+                        <TableCell
+                          className="max-w-[300px] truncate"
+                          title={r.services}
+                        >
+                          {r.services}
+                        </TableCell>
                         <TableCell>₱{r.gross.toLocaleString()}</TableCell>
                         <TableCell>₱{r.discount.toLocaleString()}</TableCell>
                         <TableCell>₱{r.net.toLocaleString()}</TableCell>
                         <TableCell>{r.paymentMethod}</TableCell>
-                        <TableCell>{r.isManual ? <Badge variant="outline">Manual</Badge> : 'Auto'}</TableCell>
+                        <TableCell>
+                          {r.isManual ? (
+                            <Badge variant="outline">Manual</Badge>
+                          ) : (
+                            "Auto"
+                          )}
+                        </TableCell>
                         <TableCell>
                           {r.isManual && (
-                            <Button size="sm" variant="ghost" onClick={() => removeManualTransaction(r.id)}>Remove</Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeManualTransaction(r.id)}
+                            >
+                              Remove
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -838,7 +1276,9 @@ const SalesManagementPage = () => {
 
       {/* Raw table */}
       <Card>
-        <CardHeader><CardTitle>Transactions</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Transactions</CardTitle>
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -860,7 +1300,12 @@ const SalesManagementPage = () => {
                   <TableCell>{dayjs(r.date).format("MMM DD, YYYY")}</TableCell>
                   <TableCell>{r.branch}</TableCell>
                   <TableCell>{r.barber}</TableCell>
-                  <TableCell className="max-w-[300px] truncate" title={r.services}>{r.services}</TableCell>
+                  <TableCell
+                    className="max-w-[300px] truncate"
+                    title={r.services}
+                  >
+                    {r.services}
+                  </TableCell>
                   <TableCell>₱{r.gross.toLocaleString()}</TableCell>
                   <TableCell>₱{r.discount.toLocaleString()}</TableCell>
                   <TableCell>₱{r.net.toLocaleString()}</TableCell>
@@ -868,7 +1313,15 @@ const SalesManagementPage = () => {
                     <Badge variant="secondary">{r.paymentMethod}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={r.status === 'completed' ? 'default' : r.status === 'cancelled' ? 'destructive' : 'secondary'}>
+                    <Badge
+                      variant={
+                        r.status === "completed"
+                          ? "default"
+                          : r.status === "cancelled"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
                       {r.status}
                     </Badge>
                   </TableCell>
@@ -883,5 +1336,3 @@ const SalesManagementPage = () => {
 };
 
 export default SalesManagementPage;
-
-
