@@ -215,16 +215,28 @@ export const sorts = [
 
 export const userRoles = [
   {
-    value: "user",
+    value: "USER",
     label: "User",
     bgColor: "bg-[#FDF2FA]",
     textColor: "text-[#C11574]",
   },
   {
-    value: "admin",
+    value: "ADMIN",
     label: "Admin",
     bgColor: "bg-[#ECFDF3]",
     textColor: "text-[#027A48]",
+  },
+  {
+    value: "MANAGER",
+    label: "Manager",
+    bgColor: "bg-[#EFF6FF]",
+    textColor: "text-[#1D4ED8]",
+  },
+  {
+    value: "STAFF",
+    label: "Staff",
+    bgColor: "bg-[#FEF3C7]",
+    textColor: "text-[#D97706]",
   },
 ];
 

@@ -1,6 +1,7 @@
 import { db } from "@/database/drizzle";
 import { appointments } from "@/database/schema";
 import { eq, and } from "drizzle-orm";
+import redis from "@/database/redis";
 
 export interface TimeSlot {
   time: string;
@@ -84,10 +85,35 @@ export const getAvailableTimeSlots = async (
     // Get booked times
     const bookedTimes = existingAppointments.map((apt) => apt.appointmentTime);
 
-    // Create time slots with availability
+    // Get shifts and leaves for staff availability check
+    const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
+    const leaves = ((await redis.get("scheduling:leaves")) as any[]) || [];
+    const dayShifts = shifts.filter(
+      (s) => s.branchId === branchId && s.barberId === barberId && s.date === date
+    );
+    const dayLeaves = leaves.filter(
+      (l) => l.barberId === barberId && l.date === date && l.status === "approved"
+    );
+
+    // Helper functions for staff availability
+    const withinAnyShift = (time: string) => {
+      // If no shifts are scheduled, staff is not available
+      if (dayShifts.length === 0) return false;
+      
+      // If shifts are scheduled, only allow times within those shifts
+      return dayShifts.some((s) => time >= s.startTime && time < s.endTime && !(s.breaks || []).some((b: any) => time >= b.startTime && time < b.endTime));
+    };
+    
+    const notOnLeave = (time: string) =>
+      dayLeaves.every((l) => {
+        if (!l.startTime || !l.endTime) return false; // full-day leave blocks all
+        return time < l.startTime || time >= l.endTime;
+      });
+
+    // Create time slots with availability (check both booking conflicts and staff scheduling)
     const timeSlots: TimeSlot[] = allTimeSlots.map((time) => ({
       time,
-      available: !bookedTimes.includes(time),
+      available: !bookedTimes.includes(time) && withinAnyShift(time) && notOnLeave(time),
     }));
 
     return timeSlots;
@@ -123,6 +149,7 @@ export const isTimeSlotAvailable = async (
   branchId: string,
 ): Promise<boolean> => {
   try {
+    // Check for existing appointments
     const existingAppointment = await db
       .select()
       .from(appointments)
@@ -136,7 +163,14 @@ export const isTimeSlotAvailable = async (
       )
       .limit(1);
 
-    return existingAppointment.length === 0;
+    // If there's already an appointment, it's not available
+    if (existingAppointment.length > 0) {
+      return false;
+    }
+
+    // Check staff availability
+    const staffAvailability = await isStaffAvailable(date, time, barberId, branchId);
+    return staffAvailability.available;
   } catch (error) {
     console.error("Error checking time slot availability:", error);
     return false;
@@ -186,3 +220,70 @@ export interface AppointmentFormValues {
   appointmentDate: string;
   appointmentTime: string;
 }
+
+// Check if staff is available for a specific time slot
+export const isStaffAvailable = async (
+  date: string,
+  time: string,
+  barberId: string,
+  branchId: string,
+): Promise<{ available: boolean; reason?: string }> => {
+  try {
+    // Get shifts and leaves from Redis
+    const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
+    const leaves = ((await redis.get("scheduling:leaves")) as any[]) || [];
+
+    // Filter shifts and leaves for the specific date, barber, and branch
+    const dayShifts = shifts.filter(
+      (s) => s.branchId === branchId && s.barberId === barberId && s.date === date
+    );
+    const dayLeaves = leaves.filter(
+      (l) => l.barberId === barberId && l.date === date && l.status === "approved"
+    );
+
+    // Check if barber is on leave
+    const isOnLeave = dayLeaves.some((leave) => {
+      // If no specific time range, it's a full-day leave
+      if (!leave.startTime || !leave.endTime) {
+        return true;
+      }
+      // Check if the appointment time falls within the leave period
+      return time >= leave.startTime && time < leave.endTime;
+    });
+
+    if (isOnLeave) {
+      return { available: false, reason: "Staff member is on approved leave" };
+    }
+
+    // If no shifts are scheduled, staff is not available (default business hours don't apply)
+    if (dayShifts.length === 0) {
+      return { available: false, reason: "No staff scheduled for this time" };
+    }
+
+    // Check if the time falls within any scheduled shift
+    const isWithinShift = dayShifts.some((shift) => {
+      // Check if time is within shift hours
+      const withinShiftHours = time >= shift.startTime && time < shift.endTime;
+      
+      if (!withinShiftHours) {
+        return false;
+      }
+
+      // Check if time falls within any break period
+      const isOnBreak = (shift.breaks || []).some((breakPeriod: any) => 
+        time >= breakPeriod.startTime && time < breakPeriod.endTime
+      );
+
+      return !isOnBreak;
+    });
+
+    if (!isWithinShift) {
+      return { available: false, reason: "Staff member is not scheduled during this time" };
+    }
+
+    return { available: true };
+  } catch (error) {
+    console.error("Error checking staff availability:", error);
+    return { available: false, reason: "Error checking availability" };
+  }
+};

@@ -7,9 +7,13 @@ import { cn, getInitials } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Session } from "next-auth";
+import { getAdminNavItems } from "@/lib/admin-utils";
 
 const Sidebar = ({ session }: { session: Session }) => {
   const pathname = usePathname();
+  
+  // Get navigation items based on user role
+  const navItems = getAdminNavItems(session?.user?.role || "USER");
 
   return (
     <div className="admin-sidebar">
@@ -25,7 +29,7 @@ const Sidebar = ({ session }: { session: Session }) => {
         </div>
 
         <div className="mt-10 flex flex-col gap-5">
-          {adminSideBarLinks.map((link) => {
+          {navItems.map((link) => {
             const isSelected =
               (link.route !== "/admin" &&
                 pathname.includes(link.route) &&
