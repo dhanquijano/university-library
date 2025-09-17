@@ -156,7 +156,7 @@ const Planner: React.FC = () => {
       barberId: barberIdToUse,
       date: format(day, "yyyy-MM-dd"),
       startTime: "10:00",
-      endTime: "19:00",
+      endTime: "22:00",
       type: "full",
     } as Partial<Shift>;
     const res = await fetch("/api/admin/scheduling/shifts", {

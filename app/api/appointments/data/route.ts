@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAvailableDates } from "@/lib/appointment-utils";
+import redis from "@/database/redis";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,16 +30,34 @@ export async function GET(request: NextRequest) {
       hours: branch.hours
     }));
 
-    // Filter barbers based on selected branch
-    let barbers = allBarbers;
-    if (branchId) {
-      barbers = allBarbers.filter(
-        (barber: any) => barber.branches && barber.branches.includes(branchId),
-      );
-    }
-
     // Get available dates
     const availableDates = getAvailableDates();
+
+    // Filter barbers based on selected branch and actual scheduled shifts in the next 30 days
+    let barbers = allBarbers;
+    if (branchId) {
+      // First, filter by branch membership
+      const branchEligible = allBarbers.filter(
+        (barber: any) => barber.branches && barber.branches.includes(branchId),
+      );
+
+      // Then, cross-check with shifts from Redis; include only those with any shift on any available date for this branch
+      const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
+      const availableDateSet = new Set(availableDates);
+      const scheduledBarberIds = new Set(
+        shifts
+          .filter(
+            (s: any) =>
+              s.branchId === branchId &&
+              s.barberId &&
+              s.date &&
+              availableDateSet.has(s.date),
+          )
+          .map((s: any) => s.barberId),
+      );
+
+      barbers = branchEligible.filter((b: any) => scheduledBarberIds.has(b.id));
+    }
 
   return NextResponse.json({
       success: true,

@@ -14,7 +14,7 @@ const KEY = "scheduling:templates";
 
 export async function GET() {
   const templates = ((await redis.get(KEY)) as Template[]) || [
-    { id: "tpl-1", name: "Full Day (10-7)", startTime: "10:00", endTime: "19:00", breakStart: "13:00", breakEnd: "14:00" },
+    { id: "tpl-1", name: "Full Day (10-10)", startTime: "10:00", endTime: "22:00", breakStart: "13:00", breakEnd: "14:00" },
     { id: "tpl-2", name: "Half Day (12-5)", startTime: "12:00", endTime: "17:00" },
   ];
   return NextResponse.json(templates);
