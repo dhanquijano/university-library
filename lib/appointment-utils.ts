@@ -1,7 +1,6 @@
 import { db } from "@/database/drizzle";
-import { appointments } from "@/database/schema";
+import { appointments, staffShifts, staffLeaves } from "@/database/schema";
 import { eq, and } from "drizzle-orm";
-import redis from "@/database/redis";
 
 export interface TimeSlot {
   time: string;
@@ -15,8 +14,8 @@ export interface AppointmentAvailability {
 
 // Generate time slots for a given date range
 export const generateTimeSlots = (
-  startTime: string = "09:00",
-  endTime: string = "20:00",
+  startTime: string = "10:00",
+  endTime: string = "21:00",
   interval: number = 30,
 ): string[] => {
   const slots: string[] = [];
@@ -86,14 +85,28 @@ export const getAvailableTimeSlots = async (
     const bookedTimes = existingAppointments.map((apt) => apt.appointmentTime);
 
     // Get shifts and leaves for staff availability check
-    const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
-    const leaves = ((await redis.get("scheduling:leaves")) as any[]) || [];
-    const dayShifts = shifts.filter(
-      (s) => s.branchId === branchId && s.barberId === barberId && s.date === date
-    );
-    const dayLeaves = leaves.filter(
-      (l) => l.barberId === barberId && l.date === date && l.status === "approved"
-    );
+    const [dayShifts, dayLeaves] = await Promise.all([
+      db
+        .select()
+        .from(staffShifts)
+        .where(
+          and(
+            eq(staffShifts.branchId, branchId),
+            eq(staffShifts.barberId, barberId),
+            eq(staffShifts.date, date)
+          )
+        ),
+      db
+        .select()
+        .from(staffLeaves)
+        .where(
+          and(
+            eq(staffLeaves.barberId, barberId),
+            eq(staffLeaves.date, date),
+            eq(staffLeaves.status, "approved")
+          )
+        )
+    ]);
 
     // Helper functions for staff availability
     const withinAnyShift = (time: string) => {
@@ -101,7 +114,11 @@ export const getAvailableTimeSlots = async (
       if (dayShifts.length === 0) return false;
       
       // If shifts are scheduled, only allow times within those shifts
-      return dayShifts.some((s) => time >= s.startTime && time < s.endTime && !(s.breaks || []).some((b: any) => time >= b.startTime && time < b.endTime));
+      return dayShifts.some((s) => {
+        const breaks = s.breaks ? JSON.parse(s.breaks) : [];
+        return time >= s.startTime && time < s.endTime && 
+               !breaks.some((b: any) => time >= b.startTime && time < b.endTime);
+      });
     };
     
     const notOnLeave = (time: string) =>
@@ -132,12 +149,11 @@ export const getAvailableDates = (): string[] => {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
 
-    // Skip Sundays (assuming the salon is closed on Sundays)
-    if (date.getDay() !== 0) {
-      dates.push(date.toISOString().split("T")[0]);
-    }
+    // Include all days - no restrictions
+    dates.push(date.toISOString().split("T")[0]);
   }
 
+  console.log("Generated available dates:", dates);
   return dates;
 };
 
@@ -229,17 +245,29 @@ export const isStaffAvailable = async (
   branchId: string,
 ): Promise<{ available: boolean; reason?: string }> => {
   try {
-    // Get shifts and leaves from Redis
-    const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
-    const leaves = ((await redis.get("scheduling:leaves")) as any[]) || [];
-
-    // Filter shifts and leaves for the specific date, barber, and branch
-    const dayShifts = shifts.filter(
-      (s) => s.branchId === branchId && s.barberId === barberId && s.date === date
-    );
-    const dayLeaves = leaves.filter(
-      (l) => l.barberId === barberId && l.date === date && l.status === "approved"
-    );
+    // Get shifts and leaves from database
+    const [dayShifts, dayLeaves] = await Promise.all([
+      db
+        .select()
+        .from(staffShifts)
+        .where(
+          and(
+            eq(staffShifts.branchId, branchId),
+            eq(staffShifts.barberId, barberId),
+            eq(staffShifts.date, date)
+          )
+        ),
+      db
+        .select()
+        .from(staffLeaves)
+        .where(
+          and(
+            eq(staffLeaves.barberId, barberId),
+            eq(staffLeaves.date, date),
+            eq(staffLeaves.status, "approved")
+          )
+        )
+    ]);
 
     // Check if barber is on leave
     const isOnLeave = dayLeaves.some((leave) => {
@@ -270,7 +298,8 @@ export const isStaffAvailable = async (
       }
 
       // Check if time falls within any break period
-      const isOnBreak = (shift.breaks || []).some((breakPeriod: any) => 
+      const breaks = shift.breaks ? JSON.parse(shift.breaks) : [];
+      const isOnBreak = breaks.some((breakPeriod: any) => 
         time >= breakPeriod.startTime && time < breakPeriod.endTime
       );
 

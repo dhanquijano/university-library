@@ -45,6 +45,7 @@ const AppointmentForm = () => {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [availableBarbers, setAvailableBarbers] = useState<Barber[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(enhancedAppointmentSchema),
@@ -109,6 +110,40 @@ const AppointmentForm = () => {
       setAvailableBarbers([]);
     }
   }, [selectedBranch]);
+
+  // Fetch available dates when barber changes
+  useEffect(() => {
+    const fetchAvailableDates = async () => {
+      if (selectedBranch && selectedBarber) {
+        // If "no preference" is selected, use the global available dates
+        if (selectedBarber === 'no_preference') {
+          console.log("Using global available dates for no preference:", appointmentData?.availableDates);
+          setAvailableDates(appointmentData?.availableDates || []);
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `/api/appointments/available-dates?barberId=${selectedBarber}&branchId=${selectedBranch}`
+          );
+          const result = await response.json();
+          
+          if (result.success) {
+            setAvailableDates(result.data.availableDates);
+          } else {
+            setAvailableDates([]);
+          }
+        } catch (error) {
+          console.error("Error fetching available dates:", error);
+          setAvailableDates([]);
+        }
+      } else {
+        setAvailableDates([]);
+      }
+    };
+
+    fetchAvailableDates();
+  }, [selectedBranch, selectedBarber, appointmentData]);
 
   // Check availability when branch, barber, or date changes
   useEffect(() => {
@@ -221,8 +256,10 @@ const AppointmentForm = () => {
     setSelectedBarber(barberId);
     form.setValue("barber", barberId);
     setSelectedDate("");
+    setSelectedTime("");
     form.setValue("appointmentDate", "");
     form.setValue("appointmentTime", "");
+    setTimeSlots([]);
   };
 
   const handleDateChange = (date: string) => {
@@ -290,7 +327,15 @@ const AppointmentForm = () => {
             />
           )}
 
-          {selectedBarber && (
+          {selectedBarber && availableDates.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-800">
+                No available dates found for the selected barber. The barber may not have any scheduled shifts in the coming days.
+              </p>
+            </div>
+          )}
+
+          {selectedBarber && availableDates.length > 0 && (
             <DateTimeSelection 
               form={form} 
               appointmentData={appointmentData} 
@@ -299,7 +344,8 @@ const AppointmentForm = () => {
               timeSlots={timeSlots} 
               checkingAvailability={checkingAvailability} 
               selectedTime={selectedTime} 
-              onTimeSelect={handleTimeSelect} 
+              onTimeSelect={handleTimeSelect}
+              availableDates={availableDates}
             />
           )}
 

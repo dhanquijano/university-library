@@ -33,7 +33,123 @@ import {
   Filter,
   PieChart,
   TrendingUp,
+  Shield,
 } from "lucide-react";
+import VerificationTab from "@/components/VerificationTab";
+import { useAdminRole } from "@/lib/admin-utils";
+import { useSession } from "next-auth/react";
+
+// Wrapper component to prevent VerificationTab from unmounting
+const VerificationTabWrapper = ({ 
+  isAdmin, 
+  adminLoading 
+}: { 
+  isAdmin: boolean; 
+  adminLoading: boolean; 
+}) => {
+  const [hasBeenAdmin, setHasBeenAdmin] = useState(() => {
+    // Check localStorage for persistent admin status
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('hasBeenAdmin') === 'true';
+    }
+    return false;
+  });
+
+  // Once user has been confirmed as admin, keep the tab available and persist it
+  useEffect(() => {
+    if (isAdmin && !adminLoading) {
+      setHasBeenAdmin(true);
+      // Persist admin status in localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hasBeenAdmin', 'true');
+      }
+    }
+  }, [isAdmin, adminLoading]);
+
+  // Clear admin status if user explicitly logs out or session is completely invalid
+  useEffect(() => {
+    if (!adminLoading && !isAdmin && hasBeenAdmin) {
+      // Only clear if we're sure the session is invalid (not just refreshing)
+      const checkSessionValidity = async () => {
+        try {
+          const response = await fetch('/api/auth/session');
+          const session = await response.json();
+          if (!session || !session.user) {
+            // Session is completely invalid, clear admin status
+            setHasBeenAdmin(false);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('hasBeenAdmin');
+            }
+          }
+        } catch (error) {
+          console.log('Session check failed, keeping admin status for now');
+        }
+      };
+      
+      // Delay the check to avoid clearing during normal session refresh
+      const timeoutId = setTimeout(checkSessionValidity, 5000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isAdmin, adminLoading, hasBeenAdmin]);
+
+  if (hasBeenAdmin || isAdmin) {
+    return <VerificationTab key="verification-component" />;
+  }
+
+  if (adminLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading verification panel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center p-8">
+      <div className="text-center">
+        <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
+        <p className="text-gray-600">You need admin privileges to access the verification panel.</p>
+        <div className="mt-4 p-4 bg-gray-100 rounded text-left text-xs">
+          <p><strong>Debug Info:</strong></p>
+          <p>isAdmin: {String(isAdmin)}</p>
+          <p>adminLoading: {String(adminLoading)}</p>
+          <p>hasBeenAdmin: {String(hasBeenAdmin)}</p>
+          <button 
+            onClick={async () => {
+              console.log('Manual session check:', { isAdmin, adminLoading });
+              // Clear localStorage and force session refresh
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('hasBeenAdmin');
+              }
+              // Force NextAuth session refresh
+              const { signIn } = await import('next-auth/react');
+              window.location.href = '/api/auth/signin';
+            }}
+            className="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-xs"
+          >
+            Re-authenticate
+          </button>
+          <button 
+            onClick={() => {
+              // Force admin status for testing
+              setHasBeenAdmin(true);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('hasBeenAdmin', 'true');
+              }
+            }}
+            className="mt-2 ml-2 px-3 py-1 bg-green-500 text-white rounded text-xs"
+          >
+            Force Admin (Test)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // This page aggregates sales from appointments as "sales" source data.
 // It provides filters and multiple breakdowns. Export is client-side CSV for now.
@@ -41,9 +157,6 @@ import {
 type PaymentMethod =
   | "Cash"
   | "GCash"
-  | "Maya"
-  | "Bank Transfer"
-  | "Card"
   | "Unknown";
 
 interface SalesRecord {
@@ -60,6 +173,7 @@ interface SalesRecord {
   status: "completed" | "cancelled" | "refunded" | "pending";
   isManual?: boolean;
   notes?: string;
+  receiptUrl?: string;
 }
 
 const parsePriceFromServices = (services: string): number => {
@@ -73,7 +187,7 @@ const parsePriceFromServices = (services: string): number => {
 
 const toCsv = (rows: any[]) => {
   if (!rows.length) return "";
-  
+
   // Helper function to properly escape CSV values
   const escapeCsvValue = (value: any): string => {
     if (value === null || value === undefined) return "";
@@ -84,17 +198,82 @@ const toCsv = (rows: any[]) => {
     }
     return str;
   };
-  
+
   const headers = Object.keys(rows[0]);
   const headerRow = headers.map(escapeCsvValue).join(",");
   const bodyRows = rows.map((r) =>
     headers.map((h) => escapeCsvValue(r[h])).join(",")
   );
-  
+
   return [headerRow, ...bodyRows].join("\n");
 };
 
 const SalesManagementPage = () => {
+  // Admin role checking
+  const { isAdmin, isLoading: adminLoading } = useAdminRole();
+  const [persistentAdminStatus, setPersistentAdminStatus] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('hasBeenAdmin') === 'true';
+    }
+    return false;
+  });
+
+  // Update persistent admin status when session confirms admin
+  useEffect(() => {
+    if (isAdmin && !adminLoading) {
+      setPersistentAdminStatus(true);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hasBeenAdmin', 'true');
+      }
+    }
+  }, [isAdmin, adminLoading]);
+
+  // Use persistent admin status or current session admin status
+  const effectiveIsAdmin = persistentAdminStatus || isAdmin;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('Admin state:', { isAdmin, adminLoading });
+  }, [isAdmin, adminLoading]);
+
+  // More detailed session debugging
+  const { data: session, status, update } = useSession();
+  useEffect(() => {
+    console.log('Session debug:', {
+      status,
+      session,
+      user: session?.user,
+      role: session?.user?.role,
+      isAdmin: session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER"
+    });
+  }, [session, status]);
+
+  // Auto-refresh session periodically to maintain admin status
+  useEffect(() => {
+    if (effectiveIsAdmin) {
+      const interval = setInterval(async () => {
+        console.log('Refreshing session to maintain admin status...');
+        try {
+          await update(); // This refreshes the NextAuth session
+        } catch (error) {
+          console.error('Failed to refresh session:', error);
+        }
+      }, 25000); // Refresh every 25 seconds, before the 30-second timeout
+
+      return () => clearInterval(interval);
+    }
+  }, [effectiveIsAdmin, update]);
+
+  // Clear persistent admin status if user is completely logged out
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      setPersistentAdminStatus(false);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hasBeenAdmin');
+      }
+    }
+  }, [status]);
+  
   const [rangeType, setRangeType] = useState<
     "daily" | "weekly" | "monthly" | "custom"
   >("daily");
@@ -232,9 +411,6 @@ const SalesManagementPage = () => {
       const val = (raw || "").toLowerCase();
       if (val.includes("cash")) return "Cash";
       if (val.includes("gcash")) return "GCash";
-      if (val.includes("maya")) return "Maya";
-      if (val.includes("bank")) return "Bank Transfer";
-      if (val.includes("card")) return "Card";
       return "Unknown";
     };
 
@@ -312,7 +488,7 @@ const SalesManagementPage = () => {
       toast.error("No data to export");
       return;
     }
-    
+
     // Format the data for CSV export with proper column names
     const csvData = filtered.map((record) => ({
       "Transaction ID": record.id,
@@ -329,7 +505,7 @@ const SalesManagementPage = () => {
       "Source": record.isManual ? "Manual" : "Appointment",
       "Notes": record.notes || ""
     }));
-    
+
     const csv = toCsv(csvData);
     // Add BOM for proper UTF-8 encoding in Excel
     const csvWithBom = '\uFEFF' + csv;
@@ -432,7 +608,7 @@ const SalesManagementPage = () => {
               1,
               Math.round(
                 r.net /
-                  ((r.services || "").split(",").filter(Boolean).length || 1),
+                ((r.services || "").split(",").filter(Boolean).length || 1),
               ),
             );
         });
@@ -481,7 +657,7 @@ const SalesManagementPage = () => {
       toast.error("No data to export for this date");
       return;
     }
-    
+
     // Create a comprehensive daily report CSV with proper structure
     const csvData = daySales.map((record) => ({
       "Report Date": dailyReportDate,
@@ -501,7 +677,7 @@ const SalesManagementPage = () => {
       "Notes": record.notes || "",
       "Report Notes": dailyNotes || ""
     }));
-    
+
     const csv = toCsv(csvData);
     // Add BOM for proper UTF-8 encoding in Excel
     const csvWithBom = '\uFEFF' + csv;
@@ -593,6 +769,7 @@ const SalesManagementPage = () => {
     "completed" | "cancelled" | "refunded" | "pending"
   >("completed");
   const [txNotes, setTxNotes] = useState<string>("");
+  const [txGcashReceipt, setTxGcashReceipt] = useState<File | null>(null);
 
   const addManualTransaction = async () => {
     if (!txDate || !txTime) {
@@ -609,28 +786,69 @@ const SalesManagementPage = () => {
       toast.error("Amounts cannot be negative");
       return;
     }
+
+    // Validate GCash receipt upload
+    if (txPayment === "GCash" && !txGcashReceipt) {
+      toast.error("Please upload a GCash receipt image");
+      return;
+    }
+
     const net = Math.max(0, gross - discount);
-    const payload = {
-      date: txDate,
-      time: txTime,
-      branch: txBranch,
-      barber: txBarber || "Walk-in",
-      services: txServicesSelected.join(", "),
-      gross,
-      discount,
-      net,
-      paymentMethod: txPayment,
-      status: txStatus,
-      isManual: true,
-      notes: txNotes,
-    };
+
     try {
+      let receiptUrl = "";
+
+      // Upload file if GCash payment method
+      if (txPayment === "GCash" && txGcashReceipt) {
+        console.log("Uploading GCash receipt:", txGcashReceipt.name);
+        const formData = new FormData();
+        formData.append("file", txGcashReceipt);
+        formData.append("type", "gcash-receipt");
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errorText = await uploadRes.text();
+          console.error("Upload failed:", errorText);
+          toast.error("Failed to upload receipt image");
+          return;
+        }
+
+        const uploadResult = await uploadRes.json();
+        console.log("Upload successful:", uploadResult);
+        receiptUrl = uploadResult.url;
+      }
+
+      const payload = {
+        date: txDate,
+        time: txTime,
+        branch: txBranch,
+        barber: txBarber || "Walk-in",
+        services: txServicesSelected.join(", "),
+        gross,
+        discount,
+        net,
+        paymentMethod: txPayment,
+        status: txStatus,
+        isManual: true,
+        notes: txNotes,
+        receiptUrl: receiptUrl || null,
+      };
+
+      console.log("Saving transaction with payload:", payload);
       const res = await fetch("/api/admin/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Sales API error:", errorText);
+        throw new Error("Failed to save");
+      }
       const saved = await res.json();
       const normalized = {
         ...saved,
@@ -648,6 +866,7 @@ const SalesManagementPage = () => {
       setManualSales((prev) => [normalized, ...prev]);
       toast.success("Manual transaction added");
     } catch (e) {
+      console.error("Transaction error:", e);
       toast.error("Failed to save transaction");
       return;
     }
@@ -657,6 +876,7 @@ const SalesManagementPage = () => {
     setTxGross("0");
     setTxDiscount("0");
     setTxNotes("");
+    setTxGcashReceipt(null);
   };
 
   const removeManualTransaction = async (id: string) => {
@@ -798,6 +1018,14 @@ const SalesManagementPage = () => {
           </TabsTrigger>
           <TabsTrigger value="payments" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" /> Payments
+          </TabsTrigger>
+          <TabsTrigger 
+            value="verification" 
+            className="flex items-center gap-2"
+          >
+            <Shield className="h-4 w-4" /> 
+            Verification
+            {adminLoading && <span className="ml-1 text-xs">...</span>}
           </TabsTrigger>
         </TabsList>
 
@@ -1072,9 +1300,6 @@ const SalesManagementPage = () => {
                           [
                             "Cash",
                             "GCash",
-                            "Maya",
-                            "Bank Transfer",
-                            "Card",
                           ] as PaymentMethod[]
                         ).map((m) => (
                           <SelectItem key={m} value={m}>
@@ -1084,6 +1309,35 @@ const SalesManagementPage = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  {txPayment === "GCash" && (
+                    <div>
+                      <Label className="mb-1 block">GCash Receipt *</Label>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          setTxGcashReceipt(file || null);
+                        }}
+                        className="cursor-pointer"
+                      />
+                      {txGcashReceipt && (
+                        <div className="mt-2">
+                          <p className="text-xs text-green-600">
+                            ✓ Selected: {txGcashReceipt.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Size: {(txGcashReceipt.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      )}
+                      {!txGcashReceipt && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Upload receipt image (max 5MB)
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <Label className="mb-1 block">Status</Label>
                     <Select
@@ -1158,6 +1412,8 @@ const SalesManagementPage = () => {
                       setTxGross("0");
                       setTxDiscount("0");
                       setTxNotes("");
+                      setTxGcashReceipt(null);
+                      setTxServicesSelected([]);
                     }}
                   >
                     Clear
@@ -1245,7 +1501,22 @@ const SalesManagementPage = () => {
                         <TableCell>₱{r.gross.toLocaleString()}</TableCell>
                         <TableCell>₱{r.discount.toLocaleString()}</TableCell>
                         <TableCell>₱{r.net.toLocaleString()}</TableCell>
-                        <TableCell>{r.paymentMethod}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {r.paymentMethod}
+                            {r.paymentMethod === "GCash" && (r as any).receiptUrl && (
+                              <a
+                                href={(r as any).receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
+                                title="View GCash Receipt"
+                              >
+                                🧾
+                              </a>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {r.isManual ? (
                             <Badge variant="outline">Manual</Badge>
@@ -1271,6 +1542,14 @@ const SalesManagementPage = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="verification">
+          <VerificationTabWrapper 
+            key="verification-tab" 
+            isAdmin={effectiveIsAdmin} 
+            adminLoading={adminLoading} 
+          />
         </TabsContent>
       </Tabs>
 

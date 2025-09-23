@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import redis from "@/database/redis";
+import { db } from "@/database/drizzle";
+import { staffLeaves } from "@/database/schema";
+import { eq } from "drizzle-orm";
 
 type Leave = {
   id: string;
@@ -12,14 +14,36 @@ type Leave = {
   reason?: string;
 };
 
-const KEY = "scheduling:leaves";
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const barberId = searchParams.get("barberId");
-  const all = ((await redis.get(KEY)) as Leave[]) || [];
-  const filtered = barberId ? all.filter((l) => l.barberId === barberId) : all;
-  return NextResponse.json(filtered);
+
+  try {
+    let query = db.select().from(staffLeaves);
+    
+    if (barberId) {
+      query = query.where(eq(staffLeaves.barberId, barberId));
+    }
+
+    const leaves = await query;
+    
+    // Transform to match the expected format
+    const formattedLeaves = leaves.map(leave => ({
+      id: leave.id,
+      barberId: leave.barberId,
+      type: leave.type,
+      date: leave.date,
+      startTime: leave.startTime,
+      endTime: leave.endTime,
+      status: leave.status,
+      reason: leave.reason
+    }));
+
+    return NextResponse.json(formattedLeaves);
+  } catch (error) {
+    console.error("Error fetching leaves:", error);
+    return NextResponse.json({ error: "Failed to fetch leaves" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -27,24 +51,73 @@ export async function POST(req: NextRequest) {
   if (!body.barberId || !body.type || !body.date) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const exists = ((await redis.get(KEY)) as Leave[]) || [];
-  const leave: Leave = {
-    id: crypto.randomUUID(),
-    status: body.status || "pending",
-    ...body,
-  } as Leave;
-  await redis.set(KEY, [...exists, leave]);
-  return NextResponse.json(leave, { status: 201 });
+
+  try {
+    const newLeave = await db
+      .insert(staffLeaves)
+      .values({
+        barberId: body.barberId!,
+        type: body.type as "vacation" | "sick" | "unpaid" | "other",
+        date: body.date!,
+        startTime: body.startTime || null,
+        endTime: body.endTime || null,
+        status: (body.status as "pending" | "approved" | "denied") || "pending",
+        reason: body.reason || null,
+      })
+      .returning();
+
+    const formattedLeave = {
+      id: newLeave[0].id,
+      barberId: newLeave[0].barberId,
+      type: newLeave[0].type,
+      date: newLeave[0].date,
+      startTime: newLeave[0].startTime,
+      endTime: newLeave[0].endTime,
+      status: newLeave[0].status,
+      reason: newLeave[0].reason
+    };
+
+    return NextResponse.json(formattedLeave, { status: 201 });
+  } catch (error) {
+    console.error("Error creating leave:", error);
+    return NextResponse.json({ error: "Failed to create leave" }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
   const body = (await req.json()) as { id: string; status: Leave["status"] };
   if (!body?.id || !body?.status) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-  const all = ((await redis.get(KEY)) as Leave[]) || [];
-  const updated = all.map((l) => (l.id === body.id ? { ...l, status: body.status } : l));
-  await redis.set(KEY, updated);
-  const item = updated.find((l) => l.id === body.id);
-  return NextResponse.json(item);
+
+  try {
+    const updatedLeave = await db
+      .update(staffLeaves)
+      .set({
+        status: body.status as "pending" | "approved" | "denied",
+        updatedAt: new Date()
+      })
+      .where(eq(staffLeaves.id, body.id))
+      .returning();
+
+    if (updatedLeave.length === 0) {
+      return NextResponse.json({ error: "Leave not found" }, { status: 404 });
+    }
+
+    const formattedLeave = {
+      id: updatedLeave[0].id,
+      barberId: updatedLeave[0].barberId,
+      type: updatedLeave[0].type,
+      date: updatedLeave[0].date,
+      startTime: updatedLeave[0].startTime,
+      endTime: updatedLeave[0].endTime,
+      status: updatedLeave[0].status,
+      reason: updatedLeave[0].reason
+    };
+
+    return NextResponse.json(formattedLeave);
+  } catch (error) {
+    console.error("Error updating leave:", error);
+    return NextResponse.json({ error: "Failed to update leave" }, { status: 500 });
+  }
 }
 
 

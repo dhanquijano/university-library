@@ -1,114 +1,115 @@
-// Utility functions for admin panel access control
-
-export const ADMIN_ROLES = ["ADMIN", "MANAGER", "STAFF"] as const;
-export type AdminRole = typeof ADMIN_ROLES[number];
+import { useSession } from "next-auth/react";
+import React from "react";
 
 /**
- * Check if a user role has access to the admin panel
+ * Client-side hook to check if the current user has admin role
+ * @returns Object with admin status and loading state
  */
-export const hasAdminAccess = (role: string): boolean => {
-  return ADMIN_ROLES.includes(role as AdminRole);
-};
+export function useAdminRole() {
+  const { data: session, status } = useSession();
+  
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER" || session?.user?.role === "STAFF";
+  const isLoading = status === "loading";
+  const isAuthenticated = status === "authenticated";
+  
+  return {
+    isAdmin,
+    isLoading,
+    isAuthenticated,
+    user: session?.user,
+  };
+}
 
 /**
- * Check if a user role has full admin privileges (ADMIN only)
+ * Utility function to check if a user object has admin role
+ * @param user - User object from session
+ * @returns boolean indicating if user is admin
  */
-export const isFullAdmin = (role: string): boolean => {
-  return role === "ADMIN";
-};
+export function isUserAdmin(user: any): boolean {
+  return user?.role === "ADMIN" || user?.role === "MANAGER" || user?.role === "STAFF";
+}
 
 /**
- * Check if a user role has manager privileges (ADMIN or MANAGER)
+ * Server-side function to check if a user role has admin access
+ * @param role - User role string
+ * @returns boolean indicating if role has admin access
  */
-export const isManagerOrAbove = (role: string): boolean => {
-  return role === "ADMIN" || role === "MANAGER";
-};
+export function hasAdminAccess(role: string | null | undefined): boolean {
+  return role === "ADMIN" || role === "MANAGER" || role === "STAFF";
+}
 
 /**
- * Get role display information
+ * Get navigation items based on user role
+ * @param role - User role string
+ * @returns Array of navigation items
  */
-export const getRoleDisplayInfo = (role: string) => {
-  switch (role) {
-    case "ADMIN":
-      return {
-        label: "Admin",
-        bgColor: "bg-[#ECFDF3]",
-        textColor: "text-[#027A48]",
-        description: "Full system access"
-      };
-    case "MANAGER":
-      return {
-        label: "Manager",
-        bgColor: "bg-[#EFF6FF]",
-        textColor: "text-[#1D4ED8]",
-        description: "Management access"
-      };
-    case "STAFF":
-      return {
-        label: "Staff",
-        bgColor: "bg-[#FEF3C7]",
-        textColor: "text-[#D97706]",
-        description: "Staff access"
-      };
-    case "USER":
-      return {
-        label: "User",
-        bgColor: "bg-[#FDF2FA]",
-        textColor: "text-[#C11574]",
-        description: "Regular user"
-      };
-    default:
-      return {
-        label: "Unknown",
-        bgColor: "bg-gray-100",
-        textColor: "text-gray-600",
-        description: "Unknown role"
-      };
-  }
-};
-
-/**
- * Get admin panel navigation items based on user role
- */
-export const getAdminNavItems = (role: string) => {
+export function getAdminNavItems(role: string) {
   const baseItems = [
     {
       img: "/icons/admin/user.svg",
       route: "/",
       text: "Return to Main",
-      allowedRoles: ADMIN_ROLES
     },
     {
       img: "/icons/admin/home.svg",
       route: "/admin",
       text: "Home",
-      allowedRoles: ADMIN_ROLES
     },
     {
       img: "/icons/admin/book.svg",
       route: "/admin/appointments",
       text: "All Appointments",
-      allowedRoles: ADMIN_ROLES
     },
     {
       img: "/icons/admin/bookmark.svg",
       route: "/admin/inventory",
       text: "Inventory Management",
-      allowedRoles: ["ADMIN", "MANAGER"] // Only admin and manager
     },
     {
       img: "/icons/admin/receipt.svg",
       route: "/admin/sales",
       text: "Sales Management",
-      allowedRoles: ["ADMIN", "MANAGER"] // Only admin and manager
     },
     {
       img: "/icons/admin/calendar.svg",
       route: "/admin/scheduling",
       text: "Staff Scheduling",
-      allowedRoles: ["ADMIN", "MANAGER"] // Only admin and manager
-    }
+    },
   ];
 
-  return baseItems.filter(item => item.allowedRoles.includes(role));
-};
+  // For now, all admin roles get the same navigation items
+  // This can be extended in the future to filter based on specific roles
+  if (role === "ADMIN" || role === "MANAGER") {
+    return baseItems;
+  }
+
+  // Return limited items for other roles
+  return baseItems.filter(item => 
+    item.route === "/" || 
+    item.route === "/admin" || 
+    item.route === "/admin/appointments"
+  );
+}
+
+/**
+ * Component wrapper that only renders children if user is admin
+ */
+export function AdminOnly({ 
+  children, 
+  fallback = null 
+}: { 
+  children: React.ReactNode; 
+  fallback?: React.ReactNode;
+}) {
+  const { isAdmin, isLoading } = useAdminRole();
+  
+  if (isLoading) {
+    return null; // or a loading spinner
+  }
+  
+  if (!isAdmin) {
+    return React.createElement(React.Fragment, null, fallback);
+  }
+  
+  return React.createElement(React.Fragment, null, children);
+}

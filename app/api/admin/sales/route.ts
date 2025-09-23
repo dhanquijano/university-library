@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 
 // Ensure table exists (serverless-friendly)
 async function ensureSalesTable() {
+  // Create table if it doesn't exist
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS sales (
       id text PRIMARY KEY,
@@ -22,6 +23,25 @@ async function ensureSalesTable() {
       created_at timestamptz DEFAULT now()
     );
   `);
+  
+  // Add receipt_url column if it doesn't exist
+  try {
+    // Check if column exists first
+    const columnCheck = await db.execute(sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'sales' AND column_name = 'receipt_url';
+    `);
+    
+    if (columnCheck.rows?.length === 0) {
+      await db.execute(sql`
+        ALTER TABLE sales ADD COLUMN receipt_url text;
+      `);
+      console.log("Added receipt_url column to sales table");
+    }
+  } catch (error) {
+    console.log("Error checking/adding receipt_url column:", error);
+  }
 }
 
 type PaymentMethod = "Cash" | "GCash" | "Maya" | "Bank Transfer" | "Card" | "Unknown";
@@ -44,7 +64,7 @@ export async function GET(req: NextRequest) {
   const whereSql = clauses.length ? sql`WHERE ${sql.join(clauses, sql` AND `)}` : sql``;
   const query = sql`
     SELECT id, date, time, branch, barber, services, gross, discount, net,
-           payment_method as "paymentMethod", status, is_manual as "isManual", notes
+           payment_method as "paymentMethod", status, is_manual as "isManual", notes, receipt_url as "receiptUrl"
     FROM sales
     ${whereSql}
     ORDER BY date DESC, time DESC NULLS LAST
@@ -56,6 +76,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   await ensureSalesTable();
   const body = await req.json();
+  console.log("Sales API received body:", body);
   const id: string = body.id || `m-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const date: string = body.date;
   const time: string | null = body.time ?? null;
@@ -69,14 +90,15 @@ export async function POST(req: NextRequest) {
   const status: string = body.status || 'completed';
   const isManual: boolean = body.isManual ?? true;
   const notes: string | null = body.notes ?? null;
+  const receiptUrl: string | null = body.receiptUrl ?? null;
 
   if (!date || !branch) {
     return new NextResponse("Missing required fields", { status: 400 });
   }
 
   const insert = sql`
-    INSERT INTO sales (id, date, time, branch, barber, services, gross, discount, net, payment_method, status, is_manual, notes)
-    VALUES (${id}, ${date}, ${time}, ${branch}, ${barber}, ${services}, ${gross}, ${discount}, ${net}, ${paymentMethod}, ${status}, ${isManual}, ${notes})
+    INSERT INTO sales (id, date, time, branch, barber, services, gross, discount, net, payment_method, status, is_manual, notes, receipt_url)
+    VALUES (${id}, ${date}, ${time}, ${branch}, ${barber}, ${services}, ${gross}, ${discount}, ${net}, ${paymentMethod}, ${status}, ${isManual}, ${notes}, ${receiptUrl})
     ON CONFLICT (id) DO UPDATE SET
       date = EXCLUDED.date,
       time = EXCLUDED.time,
@@ -89,8 +111,9 @@ export async function POST(req: NextRequest) {
       payment_method = EXCLUDED.payment_method,
       status = EXCLUDED.status,
       is_manual = EXCLUDED.is_manual,
-      notes = EXCLUDED.notes
-    RETURNING id, date, time, branch, barber, services, gross, discount, net, payment_method as "paymentMethod", status, is_manual as "isManual", notes;
+      notes = EXCLUDED.notes,
+      receipt_url = EXCLUDED.receipt_url
+    RETURNING id, date, time, branch, barber, services, gross, discount, net, payment_method as "paymentMethod", status, is_manual as "isManual", notes, receipt_url as "receiptUrl";
   `;
   const result = await db.execute(insert);
   return NextResponse.json(result.rows?.[0] ?? null, { status: 201 });

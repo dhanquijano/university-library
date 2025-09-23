@@ -1,0 +1,2 @@
+-- Empty migration file to fix missing migration
+-- This migration was referenced in the journal but file was missing

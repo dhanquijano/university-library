@@ -9,6 +9,7 @@ import {
   pgEnum,
   timestamp,
   decimal,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const STATUS_ENUM = pgEnum("status", [
@@ -119,7 +120,7 @@ export const stockTransactions = pgTable("stock_transactions", {
   quantity: integer("quantity").notNull(),
   previousQuantity: integer("previous_quantity").notNull(),
   newQuantity: integer("new_quantity").notNull(),
-  userId: text("user_id")
+  userId: uuid("user_id")
     .notNull()
     .references(() => users.id),
   notes: text("notes"),
@@ -142,7 +143,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 })
     .notNull()
     .default("0"),
-  requestedBy: text("requested_by")
+  requestedBy: uuid("requested_by")
     .notNull()
     .references(() => users.id),
   requestedDate: timestamp("requested_date").defaultNow(),
@@ -229,3 +230,67 @@ export const servicesCatalog = pgTable("services_catalog", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Staff Scheduling Tables
+export const shiftTypesEnum = pgEnum("shift_type", ["full", "half", "split"]);
+export const leaveTypesEnum = pgEnum("leave_type", ["vacation", "sick", "unpaid", "other"]);
+export const leaveStatusEnum = pgEnum("leave_status", ["pending", "approved", "denied"]);
+
+export const staffShifts = pgTable("staff_shifts", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+  barberId: text("barber_id").notNull(),
+  branchId: text("branch_id").notNull(),
+  date: date("date").notNull(), // YYYY-MM-DD
+  startTime: varchar("start_time", { length: 5 }).notNull(), // HH:mm
+  endTime: varchar("end_time", { length: 5 }).notNull(), // HH:mm
+  breaks: text("breaks"), // JSON string of breaks array
+  type: shiftTypesEnum("type").default("full").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const staffLeaves = pgTable("staff_leaves", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+  barberId: text("barber_id").notNull(),
+  type: leaveTypesEnum("type").notNull(),
+  date: date("date").notNull(), // YYYY-MM-DD
+  startTime: varchar("start_time", { length: 5 }), // HH:mm, optional for full day leaves
+  endTime: varchar("end_time", { length: 5 }), // HH:mm, optional for full day leaves
+  status: leaveStatusEnum("status").default("pending").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const shiftTemplates = pgTable("shift_templates", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(), // HH:mm
+  endTime: varchar("end_time", { length: 5 }).notNull(), // HH:mm
+  breakStart: varchar("break_start", { length: 5 }), // HH:mm, optional
+  breakEnd: varchar("break_end", { length: 5 }), // HH:mm, optional
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// Transaction Verification Tables
+export const VERIFICATION_STATUS_ENUM = pgEnum("verification_status", [
+  "pending",
+  "verified", 
+  "rejected"
+]);
+
+export const transactionVerifications = pgTable("transaction_verifications", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+  transactionId: text("transaction_id").notNull(), // References sales.id
+  status: VERIFICATION_STATUS_ENUM("status").default("pending").notNull(),
+  verifiedBy: text("verified_by"), // admin user ID/name
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  transactionIdIdx: index("transaction_verifications_transaction_id_idx").on(table.transactionId),
+  statusIdx: index("transaction_verifications_status_idx").on(table.status),
+  verifiedAtIdx: index("transaction_verifications_verified_at_idx").on(table.verifiedAt),
+}));

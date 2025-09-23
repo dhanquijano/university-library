@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
 
     // Get available dates
     const availableDates = getAvailableDates();
+    console.log("Available dates from API:", availableDates);
 
     // Filter barbers based on selected branch and actual scheduled shifts in the next 30 days
     let barbers = allBarbers;

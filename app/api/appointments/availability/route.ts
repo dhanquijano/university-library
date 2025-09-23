@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAvailableTimeSlots, generateTimeSlots } from "@/lib/appointment-utils";
-import redis from "@/database/redis";
+import { db } from "@/database/drizzle";
+import { staffShifts, staffLeaves } from "@/database/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,17 +23,37 @@ export async function GET(request: NextRequest) {
       ? generateTimeSlots().map((time) => ({ time, available: true }))
       : await getAvailableTimeSlots(date, barberId, branchId);
 
-    // Filter by scheduled shifts and approved leaves
-    const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
-    const leaves = ((await redis.get("scheduling:leaves")) as any[]) || [];
-    const dayShifts = shifts.filter((s) => s.branchId === branchId && s.barberId === barberId && s.date === date);
-    const dayLeaves = leaves.filter((l) => l.barberId === barberId && l.date === date && l.status === "approved");
+    // Get shifts and leaves from database
+    const dayShifts = await db
+      .select()
+      .from(staffShifts)
+      .where(
+        and(
+          eq(staffShifts.branchId, branchId),
+          eq(staffShifts.barberId, barberId),
+          eq(staffShifts.date, date)
+        )
+      );
+
+    const dayLeaves = await db
+      .select()
+      .from(staffLeaves)
+      .where(
+        and(
+          eq(staffLeaves.barberId, barberId),
+          eq(staffLeaves.date, date),
+          eq(staffLeaves.status, "approved")
+        )
+      );
 
     const withinAnyShift = (time: string) => {
       if (barberId === 'no_preference') return true;
-      // If no shifts are scheduled, allow all times
-      if (dayShifts.length === 0) return true;
-      return dayShifts.some((s) => time >= s.startTime && time < s.endTime && !(s.breaks || []).some((b: any) => time >= b.startTime && time < b.endTime));
+      // If no shifts are scheduled, staff is not available
+      if (dayShifts.length === 0) return false;
+      return dayShifts.some((s) => {
+        const breaks = s.breaks ? JSON.parse(s.breaks) : [];
+        return time >= s.startTime && time < s.endTime && !breaks.some((b: any) => time >= b.startTime && time < b.endTime);
+      });
     };
     
     const notOnLeave = (time: string) => {
@@ -67,6 +89,12 @@ export async function GET(request: NextRequest) {
         (slot.available && withinAnyShift(slot.time) && notOnLeave(slot.time)) &&
         (!isSameDate || slot.time > currentTimeHHMM),
     }));
+
+    // Debug logging
+    console.log(`Availability check for date: ${date}, barber: ${barberId}, branch: ${branchId}`);
+    console.log(`Found ${dayShifts.length} shifts and ${dayLeaves.length} leaves`);
+    console.log(`Generated ${timeSlots.length} time slots`);
+    console.log(`Available slots: ${timeSlots.filter(slot => slot.available).length}`);
 
     return NextResponse.json({
       success: true,
