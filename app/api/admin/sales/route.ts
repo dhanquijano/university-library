@@ -63,11 +63,13 @@ export async function GET(req: NextRequest) {
 
   const whereSql = clauses.length ? sql`WHERE ${sql.join(clauses, sql` AND `)}` : sql``;
   const query = sql`
-    SELECT id, date, time, branch, barber, services, gross, discount, net,
-           payment_method as "paymentMethod", status, is_manual as "isManual", notes, receipt_url as "receiptUrl"
-    FROM sales
+    SELECT s.id, s.date, s.time, s.branch, s.barber, s.services, s.gross, s.discount, s.net,
+           s.payment_method as "paymentMethod", s.status, s.is_manual as "isManual", s.notes, s.receipt_url as "receiptUrl",
+           tv.status as "verificationStatus"
+    FROM sales s
+    LEFT JOIN transaction_verifications tv ON s.id = tv.transaction_id
     ${whereSql}
-    ORDER BY date DESC, time DESC NULLS LAST
+    ORDER BY s.date DESC, s.time DESC NULLS LAST
   `;
   const result = await db.execute(query);
   return NextResponse.json((result as any).rows ?? []);

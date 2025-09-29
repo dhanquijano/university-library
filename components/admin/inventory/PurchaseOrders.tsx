@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import BranchFilter from "./BranchFilter";
 import {
   Select,
   SelectContent,
@@ -68,6 +69,8 @@ interface PurchaseOrdersProps {
   orders: PurchaseOrder[];
   suppliers: string[];
   branches: string[];
+  selectedBranches: string[];
+  onBranchChange: (branches: string[]) => void;
   lowStockItems: Array<{ id: string; name: string; currentQuantity: number; reorderThreshold: number; supplier: string; branch: string; unitPrice: number }>;
   users: string[];
   onCreateOrder: (order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'requestedDate'>) => void;
@@ -78,6 +81,8 @@ const PurchaseOrders = ({
   orders, 
   suppliers, 
   branches, 
+  selectedBranches,
+  onBranchChange,
   lowStockItems, 
   users, 
   onCreateOrder, 
@@ -91,6 +96,11 @@ const PurchaseOrders = ({
     notes: '',
     branch: '',
   });
+
+  // Filter orders based on selected branches
+  const filteredOrders = selectedBranches.length > 0 
+    ? orders.filter(order => selectedBranches.includes(order.branch))
+    : orders;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -223,6 +233,13 @@ const PurchaseOrders = ({
 
   return (
     <div className="space-y-6">
+      {/* Branch Filter */}
+      <BranchFilter
+        branches={branches}
+        selectedBranches={selectedBranches}
+        onBranchChange={onBranchChange}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -414,7 +431,7 @@ const PurchaseOrders = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-mono">{order.orderNumber}</TableCell>
                   <TableCell>{order.supplier}</TableCell>
@@ -500,7 +517,7 @@ const PurchaseOrders = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {orders.filter(o => o.status === 'requested').length}
+              {filteredOrders.filter(o => o.status === 'requested').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Pending approval
@@ -515,7 +532,7 @@ const PurchaseOrders = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {orders.filter(o => o.status === 'ordered').length}
+              {filteredOrders.filter(o => o.status === 'ordered').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Awaiting delivery
@@ -530,7 +547,7 @@ const PurchaseOrders = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {orders.filter(o => o.status === 'received').length}
+              {filteredOrders.filter(o => o.status === 'received').length}
             </div>
             <p className="text-xs text-muted-foreground">
               Completed this month
@@ -545,7 +562,7 @@ const PurchaseOrders = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">
-              ₱{orders
+              ₱{filteredOrders
                 .filter(o => o.status === 'ordered' || o.status === 'requested')
                 .reduce((sum, o) => sum + o.totalAmount, 0)
                 .toLocaleString()}

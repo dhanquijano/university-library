@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,16 +36,19 @@ import {
   Shield,
 } from "lucide-react";
 import VerificationTab from "@/components/VerificationTab";
+import SalesAnalyticsDashboard from "@/components/admin/sales/SalesAnalyticsDashboard";
 import { useAdminRole } from "@/lib/admin-utils";
 import { useSession } from "next-auth/react";
 
 // Wrapper component to prevent VerificationTab from unmounting
-const VerificationTabWrapper = ({ 
-  isAdmin, 
-  adminLoading 
-}: { 
-  isAdmin: boolean; 
-  adminLoading: boolean; 
+const VerificationTabWrapper = ({
+  isAdmin,
+  adminLoading,
+  onRefreshSalesData
+}: {
+  isAdmin: boolean;
+  adminLoading: boolean;
+  onRefreshSalesData?: () => void;
 }) => {
   const [hasBeenAdmin, setHasBeenAdmin] = useState(() => {
     // Check localStorage for persistent admin status
@@ -85,7 +88,7 @@ const VerificationTabWrapper = ({
           console.log('Session check failed, keeping admin status for now');
         }
       };
-      
+
       // Delay the check to avoid clearing during normal session refresh
       const timeoutId = setTimeout(checkSessionValidity, 5000);
       return () => clearTimeout(timeoutId);
@@ -93,7 +96,7 @@ const VerificationTabWrapper = ({
   }, [isAdmin, adminLoading, hasBeenAdmin]);
 
   if (hasBeenAdmin || isAdmin) {
-    return <VerificationTab key="verification-component" />;
+    return <VerificationTab key="verification-component" onRefreshSalesData={onRefreshSalesData} />;
   }
 
   if (adminLoading) {
@@ -118,7 +121,7 @@ const VerificationTabWrapper = ({
           <p>isAdmin: {String(isAdmin)}</p>
           <p>adminLoading: {String(adminLoading)}</p>
           <p>hasBeenAdmin: {String(hasBeenAdmin)}</p>
-          <button 
+          <button
             onClick={async () => {
               console.log('Manual session check:', { isAdmin, adminLoading });
               // Clear localStorage and force session refresh
@@ -133,7 +136,7 @@ const VerificationTabWrapper = ({
           >
             Re-authenticate
           </button>
-          <button 
+          <button
             onClick={() => {
               // Force admin status for testing
               setHasBeenAdmin(true);
@@ -157,6 +160,8 @@ const VerificationTabWrapper = ({
 type PaymentMethod =
   | "Cash"
   | "GCash"
+  | "Maya"
+  | "Bank Transfer"
   | "Unknown";
 
 interface SalesRecord {
@@ -174,6 +179,7 @@ interface SalesRecord {
   isManual?: boolean;
   notes?: string;
   receiptUrl?: string;
+  verificationStatus?: "pending" | "verified" | "rejected";
 }
 
 const parsePriceFromServices = (services: string): number => {
@@ -230,7 +236,7 @@ const SalesManagementPage = () => {
 
   // Use persistent admin status or current session admin status
   const effectiveIsAdmin = persistentAdminStatus || isAdmin;
-  
+
   // Debug logging
   useEffect(() => {
     console.log('Admin state:', { isAdmin, adminLoading });
@@ -273,7 +279,7 @@ const SalesManagementPage = () => {
       }
     }
   }, [status]);
-  
+
   const [rangeType, setRangeType] = useState<
     "daily" | "weekly" | "monthly" | "custom"
   >("daily");
@@ -293,6 +299,17 @@ const SalesManagementPage = () => {
   const [preparedBy, setPreparedBy] = useState<string>("");
   const [dailyNotes, setDailyNotes] = useState<string>("");
 
+  // Auto-populate preparedBy with logged-in user's name
+  useEffect(() => {
+    if (session?.user?.fullName) {
+      setPreparedBy(session.user.fullName);
+    } else if (session?.user?.name) {
+      setPreparedBy(session.user.name);
+    } else if (session?.user?.email) {
+      setPreparedBy(session.user.email);
+    }
+  }, [session]);
+
   const [appointments, setAppointments] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [barbers, setBarbers] = useState<any[]>([]);
@@ -300,31 +317,41 @@ const SalesManagementPage = () => {
     useState<string>("ALL");
   const [servicesCatalog, setServicesCatalog] = useState<any[]>([]);
   const [manualSales, setManualSales] = useState<SalesRecord[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load persisted manual transactions from backend
-  useEffect(() => {
-    const loadManual = async () => {
-      try {
-        const res = await fetch("/api/admin/sales", { cache: "no-store" });
-        if (!res.ok) return;
-        const rows = await res.json();
-        const normalized = (Array.isArray(rows) ? rows : []).map((r: any) => ({
-          ...r,
-          gross: typeof r.gross === "string" ? parseFloat(r.gross) : r.gross,
-          discount:
-            typeof r.discount === "string"
-              ? parseFloat(r.discount)
-              : r.discount,
-          net: typeof r.net === "string" ? parseFloat(r.net) : r.net,
-          isManual: true,
-        }));
-        setManualSales(normalized);
-      } catch (e) {
-        // ignore
+  const loadManual = useCallback(async (showRefreshIndicator = false) => {
+    try {
+      if (showRefreshIndicator) {
+        setIsRefreshing(true);
       }
-    };
-    loadManual();
+      
+      const res = await fetch("/api/admin/sales", { cache: "no-store" });
+      if (!res.ok) return;
+      const rows = await res.json();
+      const normalized = (Array.isArray(rows) ? rows : []).map((r: any) => ({
+        ...r,
+        gross: typeof r.gross === "string" ? parseFloat(r.gross) : r.gross,
+        discount:
+          typeof r.discount === "string"
+            ? parseFloat(r.discount)
+            : r.discount,
+        net: typeof r.net === "string" ? parseFloat(r.net) : r.net,
+        isManual: true,
+      }));
+      setManualSales(normalized);
+    } catch (e) {
+      // ignore
+    } finally {
+      if (showRefreshIndicator) {
+        setIsRefreshing(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    loadManual();
+  }, [loadManual]);
 
   // Load data
   useEffect(() => {
@@ -405,12 +432,31 @@ const SalesManagementPage = () => {
     return sum;
   };
 
+  // Helper function to check if transaction should be included in revenue
+  const shouldIncludeInRevenue = (record: SalesRecord): boolean => {
+    // Cash transactions are always included
+    if (record.paymentMethod === "Cash") return true;
+    
+    // Digital payment methods need verification
+    const verifiablePaymentMethods = ["GCash", "Maya", "Bank Transfer"];
+    if (verifiablePaymentMethods.includes(record.paymentMethod)) {
+      // Only include if verified (verificationStatus === "verified")
+      // If no verification status, it's pending, so exclude it
+      return (record as any).verificationStatus === "verified";
+    }
+    
+    // Other payment methods (Card, Unknown) are included by default
+    return true;
+  };
+
   // Build sales records from appointments
   const sales: SalesRecord[] = useMemo(() => {
     const normPayment = (raw: string | undefined): PaymentMethod => {
       const val = (raw || "").toLowerCase();
       if (val.includes("cash")) return "Cash";
       if (val.includes("gcash")) return "GCash";
+      if (val.includes("maya")) return "Maya";
+      if (val.includes("bank")) return "Bank Transfer";
       return "Unknown";
     };
 
@@ -472,7 +518,8 @@ const SalesManagementPage = () => {
       const byPayment = paymentFilter
         ? s.paymentMethod === paymentFilter
         : true;
-      return inRange && byBranch && byBarber && byPayment;
+      const includeInRevenue = shouldIncludeInRevenue(s);
+      return inRange && byBranch && byBarber && byPayment && includeInRevenue;
     });
   }, [sales, startDate, endDate, branchFilter, barberFilter, paymentFilter]);
 
@@ -632,7 +679,8 @@ const SalesManagementPage = () => {
         dailyReportBranch === "ALL"
           ? true
           : s.branch === branchNameById(dailyReportBranch);
-      return isSameDay && byBranch;
+      const includeInRevenue = shouldIncludeInRevenue(s);
+      return isSameDay && byBranch && includeInRevenue;
     });
   }, [sales, dailyReportDate, dailyReportBranch, branchOptions]);
 
@@ -752,6 +800,23 @@ const SalesManagementPage = () => {
   const [txDate, setTxDate] = useState<string>(dailyReportDate);
   const [txTime, setTxTime] = useState<string>("10:00");
   const [txBranch, setTxBranch] = useState<string>("ALL");
+
+  // Synchronize branch selection between daily report and manual transaction
+  useEffect(() => {
+    setTxBranch(dailyReportBranch);
+  }, [dailyReportBranch]);
+
+  // Custom setter for dailyReportBranch that also updates txBranch
+  const handleDailyReportBranchChange = (branch: string) => {
+    setDailyReportBranch(branch);
+    setTxBranch(branch);
+  };
+
+  // Custom setter for txBranch that also updates dailyReportBranch
+  const handleTxBranchChange = (branch: string) => {
+    setTxBranch(branch);
+    setDailyReportBranch(branch);
+  };
   const [txBarber, setTxBarber] = useState<string>("");
   const [txServices, setTxServices] = useState<string>("");
   const [txServicesSelected, setTxServicesSelected] = useState<string[]>([]);
@@ -765,9 +830,7 @@ const SalesManagementPage = () => {
   const [txGross, setTxGross] = useState<string>("0");
   const [txDiscount, setTxDiscount] = useState<string>("0");
   const [txPayment, setTxPayment] = useState<PaymentMethod>("Cash");
-  const [txStatus, setTxStatus] = useState<
-    "completed" | "cancelled" | "refunded" | "pending"
-  >("completed");
+
   const [txNotes, setTxNotes] = useState<string>("");
   const [txGcashReceipt, setTxGcashReceipt] = useState<File | null>(null);
 
@@ -787,9 +850,9 @@ const SalesManagementPage = () => {
       return;
     }
 
-    // Validate GCash receipt upload
-    if (txPayment === "GCash" && !txGcashReceipt) {
-      toast.error("Please upload a GCash receipt image");
+    // Validate digital payment receipt upload
+    if ((txPayment === "GCash" || txPayment === "Maya" || txPayment === "Bank Transfer") && !txGcashReceipt) {
+      toast.error(`Please upload a ${txPayment} receipt image`);
       return;
     }
 
@@ -798,12 +861,12 @@ const SalesManagementPage = () => {
     try {
       let receiptUrl = "";
 
-      // Upload file if GCash payment method
-      if (txPayment === "GCash" && txGcashReceipt) {
-        console.log("Uploading GCash receipt:", txGcashReceipt.name);
+      // Upload file if digital payment method
+      if ((txPayment === "GCash" || txPayment === "Maya" || txPayment === "Bank Transfer") && txGcashReceipt) {
+        console.log(`Uploading ${txPayment} receipt:`, txGcashReceipt.name);
         const formData = new FormData();
         formData.append("file", txGcashReceipt);
-        formData.append("type", "gcash-receipt");
+        formData.append("type", `${txPayment.toLowerCase().replace(' ', '-')}-receipt`);
 
         const uploadRes = await fetch("/api/upload", {
           method: "POST",
@@ -832,7 +895,7 @@ const SalesManagementPage = () => {
         discount,
         net,
         paymentMethod: txPayment,
-        status: txStatus,
+        status: "completed",
         isManual: true,
         notes: txNotes,
         receiptUrl: receiptUrl || null,
@@ -996,14 +1059,24 @@ const SalesManagementPage = () => {
             <CardTitle>Total Net</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">
-            ₱{totals.net.toLocaleString()}
+            {isRefreshing ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                Updating...
+              </div>
+            ) : (
+              `₱${totals.net.toLocaleString()}`
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Breakdowns */}
-      <Tabs defaultValue="daily-report" className="space-y-4">
+      <Tabs defaultValue="analytics" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart2 className="h-4 w-4" /> Analytics
+          </TabsTrigger>
           <TabsTrigger value="daily-report" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" /> Daily Report
           </TabsTrigger>
@@ -1019,15 +1092,25 @@ const SalesManagementPage = () => {
           <TabsTrigger value="payments" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" /> Payments
           </TabsTrigger>
-          <TabsTrigger 
-            value="verification" 
+          <TabsTrigger
+            value="verification"
             className="flex items-center gap-2"
           >
-            <Shield className="h-4 w-4" /> 
+            <Shield className="h-4 w-4" />
             Verification
             {adminLoading && <span className="ml-1 text-xs">...</span>}
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="analytics">
+          <SalesAnalyticsDashboard
+            sales={sales}
+            filtered={filtered}
+            totals={totals}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        </TabsContent>
 
         <TabsContent value="branches">
           <Card>
@@ -1155,7 +1238,7 @@ const SalesManagementPage = () => {
               <CardTitle>Create Daily Sales Report</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label className="mb-1 block">Report Date</Label>
                   <Input
@@ -1165,33 +1248,12 @@ const SalesManagementPage = () => {
                   />
                 </div>
                 <div>
-                  <Label className="mb-1 block">Branch</Label>
-                  <Select
-                    value={dailyReportBranch}
-                    onValueChange={(v) => {
-                      setDailyReportBranch(v);
-                      setSelectedBranchForBarbers(v);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Branches</SelectItem>
-                      {branchesList.map((b) => (
-                        <SelectItem key={b} value={b}>
-                          {b}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
                   <Label className="mb-1 block">Prepared By</Label>
                   <Input
                     value={preparedBy}
-                    onChange={(e) => setPreparedBy(e.target.value)}
-                    placeholder="e.g., Admin User"
+                    readOnly
+                    placeholder="Auto-filled from logged-in user"
+                    className="bg-gray-50 cursor-not-allowed"
                   />
                 </div>
                 <div className="flex items-end">
@@ -1235,7 +1297,7 @@ const SalesManagementPage = () => {
                     <Select
                       value={txBranch}
                       onValueChange={(v) => {
-                        setTxBranch(v);
+                        handleTxBranchChange(v);
                         setSelectedBranchForBarbers(v);
                       }}
                     >
@@ -1300,6 +1362,8 @@ const SalesManagementPage = () => {
                           [
                             "Cash",
                             "GCash",
+                            "Maya",
+                            "Bank Transfer",
                           ] as PaymentMethod[]
                         ).map((m) => (
                           <SelectItem key={m} value={m}>
@@ -1309,9 +1373,13 @@ const SalesManagementPage = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  {txPayment === "GCash" && (
+                  {(txPayment === "GCash" || txPayment === "Maya" || txPayment === "Bank Transfer") && (
                     <div>
-                      <Label className="mb-1 block">GCash Receipt *</Label>
+                      <Label className="mb-1 block">
+                        {txPayment === "GCash" && "GCash Receipt *"}
+                        {txPayment === "Maya" && "Maya Receipt *"}
+                        {txPayment === "Bank Transfer" && "Bank Transfer Receipt *"}
+                      </Label>
                       <Input
                         type="file"
                         accept="image/*"
@@ -1336,25 +1404,12 @@ const SalesManagementPage = () => {
                           Upload receipt image (max 5MB)
                         </p>
                       )}
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ This transaction will require verification before being confirmed.
+                      </p>
                     </div>
                   )}
-                  <div>
-                    <Label className="mb-1 block">Status</Label>
-                    <Select
-                      value={txStatus}
-                      onValueChange={(v) => setTxStatus(v as any)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="completed">completed</SelectItem>
-                        <SelectItem value="pending">pending</SelectItem>
-                        <SelectItem value="cancelled">cancelled</SelectItem>
-                        <SelectItem value="refunded">refunded</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
                   <div>
                     <Label className="mb-1 block">Services</Label>
                     <div className="border rounded-md p-2 max-h-48 overflow-auto">
@@ -1503,14 +1558,27 @@ const SalesManagementPage = () => {
                         <TableCell>₱{r.net.toLocaleString()}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {r.paymentMethod}
-                            {r.paymentMethod === "GCash" && (r as any).receiptUrl && (
+                            <div className="flex flex-col">
+                              <span>{r.paymentMethod}</span>
+                              {(r.paymentMethod === "GCash" || r.paymentMethod === "Maya" || r.paymentMethod === "Bank Transfer") && (
+                                <span className={`text-xs ${
+                                  r.verificationStatus === "verified" ? "text-green-600" :
+                                  r.verificationStatus === "rejected" ? "text-red-600" :
+                                  "text-amber-600"
+                                }`}>
+                                  {r.verificationStatus === "verified" ? "✓ Verified" :
+                                   r.verificationStatus === "rejected" ? "✗ Rejected" :
+                                   "⏳ Pending Verification"}
+                                </span>
+                              )}
+                            </div>
+                            {(r.paymentMethod === "GCash" || r.paymentMethod === "Maya" || r.paymentMethod === "Bank Transfer") && (r as any).receiptUrl && (
                               <a
                                 href={(r as any).receiptUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors"
-                                title="View GCash Receipt"
+                                title={`View ${r.paymentMethod} Receipt`}
                               >
                                 🧾
                               </a>
@@ -1545,10 +1613,11 @@ const SalesManagementPage = () => {
         </TabsContent>
 
         <TabsContent value="verification">
-          <VerificationTabWrapper 
-            key="verification-tab" 
-            isAdmin={effectiveIsAdmin} 
-            adminLoading={adminLoading} 
+          <VerificationTabWrapper
+            key="verification-tab"
+            isAdmin={effectiveIsAdmin}
+            adminLoading={adminLoading}
+            onRefreshSalesData={() => loadManual(true)}
           />
         </TabsContent>
       </Tabs>

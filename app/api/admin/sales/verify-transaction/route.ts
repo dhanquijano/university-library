@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if transaction exists and is a GCash transaction
+    // Check if transaction exists and is a verifiable payment method
     const transactionCheck = await db.execute(sql`
       SELECT id, payment_method 
       FROM sales 
@@ -68,11 +68,13 @@ export async function POST(req: NextRequest) {
     }
 
     const transaction = (transactionCheck as any).rows[0];
-    if (transaction.payment_method !== 'GCash') {
+    const verifiablePaymentMethods = ['GCash', 'Maya', 'Bank Transfer'];
+    
+    if (!verifiablePaymentMethods.includes(transaction.payment_method)) {
       return NextResponse.json(
         { 
           success: false, 
-          error: "Transaction is not a GCash payment" 
+          error: `Transaction payment method '${transaction.payment_method}' does not require verification` 
         },
         { status: 400 }
       );

@@ -170,7 +170,7 @@ export function VerificationStats({ stats, loading = false, error }: Verificatio
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
-                <p className="text-sm text-muted-foreground">Total GCash Transactions</p>
+                <p className="text-sm text-muted-foreground">Total Transactions</p>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">

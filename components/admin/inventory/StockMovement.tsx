@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import BranchFilter from "./BranchFilter";
 import {
   Select,
   SelectContent,
@@ -51,12 +52,16 @@ interface StockTransaction {
   notes: string;
   timestamp: string;
   reason: string;
+  branch?: string;
 }
 
 interface StockMovementProps {
   transactions: StockTransaction[];
-  items: Array<{ id: string; name: string; quantity: number }>;
+  items: Array<{ id: string; name: string; quantity: number; branch?: string }>;
   users: string[];
+  branches: string[];
+  selectedBranches: string[];
+  onBranchChange: (branches: string[]) => void;
   onAddTransaction: (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => void;
 }
 
@@ -64,6 +69,9 @@ const StockMovement = ({
   transactions, 
   items, 
   users, 
+  branches,
+  selectedBranches,
+  onBranchChange,
   onAddTransaction 
 }: StockMovementProps) => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -75,6 +83,13 @@ const StockMovement = ({
     notes: '',
     reason: '',
   });
+
+  // Filter transactions based on selected branches
+  const filteredTransactions = selectedBranches.length > 0 
+    ? transactions.filter(transaction => 
+        transaction.branch && selectedBranches.includes(transaction.branch)
+      )
+    : transactions;
 
   const getTransactionIcon = (type: string) => {
     return type === 'in' ? (
@@ -137,6 +152,13 @@ const StockMovement = ({
 
   return (
     <div className="space-y-6">
+      {/* Branch Filter */}
+      <BranchFilter
+        branches={branches}
+        selectedBranches={selectedBranches}
+        onBranchChange={onBranchChange}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -271,7 +293,7 @@ const StockMovement = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.map((transaction) => (
+              {filteredTransactions.map((transaction) => (
                 <TableRow key={transaction.id}>
                   <TableCell>
                     <div className="font-medium">{transaction.itemName}</div>
@@ -334,7 +356,7 @@ const StockMovement = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {transactions
+              {filteredTransactions
                 .filter(t => t.type === 'in')
                 .reduce((sum, t) => sum + t.quantity, 0)
                 .toLocaleString()}
@@ -352,7 +374,7 @@ const StockMovement = ({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {transactions
+              {filteredTransactions
                 .filter(t => t.type === 'out')
                 .reduce((sum, t) => sum + t.quantity, 0)
                 .toLocaleString()}
@@ -370,11 +392,11 @@ const StockMovement = ({
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
-              transactions.reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0) >= 0
+              filteredTransactions.reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0) >= 0
                 ? 'text-green-600'
                 : 'text-red-600'
             }`}>
-              {transactions
+              {filteredTransactions
                 .reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0)
                 .toLocaleString()}
             </div>

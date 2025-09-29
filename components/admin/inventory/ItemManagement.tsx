@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import BranchFilter from "./BranchFilter";
 import {
   Select,
   SelectContent,
@@ -56,6 +57,9 @@ interface ItemManagementProps {
   items: InventoryItem[];
   categories: string[];
   suppliers: string[];
+  branches: string[];
+  selectedBranches: string[];
+  onBranchChange: (branches: string[]) => void;
   onAddItem: (item: any) => Promise<void>;
   onUpdateItem: (id: string, updates: any) => Promise<void>;
   onDeleteItem: (id: string) => Promise<void>;
@@ -65,11 +69,13 @@ const ItemManagement = ({
   items = [], 
   categories = [], 
   suppliers = [],
+  branches = [],
+  selectedBranches = [],
+  onBranchChange,
   onAddItem,
   onUpdateItem,
   onDeleteItem
 }: ItemManagementProps) => {
-  const [branches, setBranches] = useState<string[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   
@@ -101,23 +107,10 @@ const ItemManagement = ({
     branch: '',
   });
 
-  // Fetch branches from API
-  useEffect(() => {
-    fetch('/api/inventory/branches')
-      .then(res => res.json())
-      .then(data => setBranches(data.map((branch: any) => branch.name)))
-      .catch(error => {
-        console.error('Error fetching branches:', error);
-        // Fallback to match the real branch names from branches.json
-        setBranches([
-          'Sanbry Main Branch',
-          'Sanbry Makati', 
-          'Sanbry BGC',
-          'Sanbry Ortigas',
-          'Sanbry Alabang'
-        ]);
-      });
-  }, []);
+  // Filter items based on selected branches
+  const filteredItems = selectedBranches.length > 0 
+    ? items.filter(item => selectedBranches.includes(item.branch))
+    : items;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -190,6 +183,13 @@ const ItemManagement = ({
 
   return (
     <div className="space-y-6">
+      {/* Branch Filter */}
+      <BranchFilter
+        branches={branches}
+        selectedBranches={selectedBranches}
+        onBranchChange={onBranchChange}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -352,7 +352,7 @@ const ItemManagement = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>

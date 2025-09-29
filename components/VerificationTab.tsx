@@ -22,21 +22,23 @@ import { ErrorDisplay } from "@/components/ErrorDisplay";
 import { retryFetch, getUserFriendlyErrorMessage, debounce } from "@/lib/retry-utils";
 
 import { VerificationStats } from "@/components/VerificationStats";
-import GCashTransactionTable from "@/components/GCashTransactionTable";
+import VerificationTransactionTable from "@/components/VerificationTransactionTable";
 import { ReceiptModal } from "@/components/ReceiptModal";
 import {
-  GCashTransaction,
+  VerifiableTransaction,
   VerificationStats as VerificationStatsType,
   VerificationStatus,
   VerificationFilters,
   PaginationParams,
+  PaymentMethod,
 } from "@/types/gcash-verification";
 
 interface VerificationTabProps {
   className?: string;
+  onRefreshSalesData?: () => void;
 }
 
-const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
+const VerificationTab: React.FC<VerificationTabProps> = ({ className, onRefreshSalesData }) => {
   // Debug logging
   useEffect(() => {
     console.log('VerificationTab mounted');
@@ -46,13 +48,14 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
   }, []);
 
   // State for data
-  const [transactions, setTransactions] = useState<GCashTransaction[]>([]);
+  const [transactions, setTransactions] = useState<VerifiableTransaction[]>([]);
   const [stats, setStats] = useState<VerificationStatsType>({
     pending: 0,
     verified: 0,
     rejected: 0,
     total: 0,
   });
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | "all">("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -91,7 +94,12 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
     setError(null);
     
     try {
-      const response = await retryFetch("/api/admin/sales/gcash-verification", {
+      // Build URL with payment method filter
+      const url = selectedPaymentMethod === "all" 
+        ? "/api/admin/sales/verification"
+        : `/api/admin/sales/verification?paymentMethod=${encodeURIComponent(selectedPaymentMethod)}`;
+        
+      const response = await retryFetch(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -131,10 +139,10 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
     }
   }, []);
 
-  // Load data on component mount
+  // Load data on component mount and when payment method changes
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedPaymentMethod]);
 
   // Handle verification action with retry logic
   const handleVerify = async (transactionId: string) => {
@@ -188,6 +196,14 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
       }));
 
       toast.success("Transaction verified successfully");
+      
+      // Refresh sales data to update revenue calculations after a small delay
+      if (onRefreshSalesData) {
+        setTimeout(() => {
+          onRefreshSalesData();
+          toast.info("Revenue updated to reflect verification");
+        }, 500);
+      }
     } catch (err) {
       console.error("Error verifying transaction:", err);
       const error = err instanceof Error ? err : new Error("Failed to verify transaction");
@@ -250,6 +266,14 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
       }));
 
       toast.success("Transaction rejected successfully");
+      
+      // Refresh sales data to update revenue calculations after a small delay
+      if (onRefreshSalesData) {
+        setTimeout(() => {
+          onRefreshSalesData();
+          toast.info("Revenue updated to reflect verification");
+        }, 500);
+      }
     } catch (err) {
       console.error("Error rejecting transaction:", err);
       const error = err instanceof Error ? err : new Error("Failed to reject transaction");
@@ -408,9 +432,9 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
         {/* Header with refresh button */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold">GCash Transaction Verification</h2>
+            <h2 className="text-xl font-semibold">Payment Verification</h2>
             <p className="text-sm text-muted-foreground">
-              Review and verify GCash payments with uploaded receipts
+              Review and verify digital payments with uploaded receipts
             </p>
           </div>
           <Button
@@ -452,7 +476,28 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* Payment Method Filter */}
+            <div className="space-y-2">
+              <Label htmlFor="payment-method-filter">Payment Method</Label>
+              <Select
+                value={selectedPaymentMethod}
+                onValueChange={(value) => 
+                  setSelectedPaymentMethod(value as PaymentMethod | "all")
+                }
+              >
+                <SelectTrigger id="payment-method-filter">
+                  <SelectValue placeholder="All Methods" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Methods</SelectItem>
+                  <SelectItem value="GCash">GCash</SelectItem>
+                  <SelectItem value="Maya">Maya</SelectItem>
+                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Status Filter */}
             <div className="space-y-2">
               <Label htmlFor="status-filter">Status</Label>
@@ -543,9 +588,22 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
           </div>
 
           {/* Active Filters Display */}
-          {(filters.status !== "all" || (filters.branch && filters.branch !== "all") || filters.dateFrom || filters.dateTo || filters.searchTerm) && (
+          {(selectedPaymentMethod !== "all" || filters.status !== "all" || (filters.branch && filters.branch !== "all") || filters.dateFrom || filters.dateTo || filters.searchTerm) && (
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-muted-foreground">Active filters:</span>
+              {selectedPaymentMethod !== "all" && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Payment: {selectedPaymentMethod}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 ml-1"
+                    onClick={() => setSelectedPaymentMethod("all")}
+                  >
+                    ×
+                  </Button>
+                </Badge>
+              )}
               {filters.status !== "all" && (
                 <Badge variant="secondary" className="flex items-center gap-1">
                   Status: {filters.status}
@@ -588,13 +646,16 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setFilters({
-                  status: "all",
-                  searchTerm: "",
-                  dateFrom: "",
-                  dateTo: "",
-                  branch: "",
-                })}
+                onClick={() => {
+                  setSelectedPaymentMethod("all");
+                  setFilters({
+                    status: "all",
+                    searchTerm: "",
+                    dateFrom: "",
+                    dateTo: "",
+                    branch: "",
+                  });
+                }}
                 className="text-xs"
               >
                 Clear all
@@ -608,7 +669,11 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>GCash Transactions</CardTitle>
+            <CardTitle>
+              {selectedPaymentMethod === "all" 
+                ? "Digital Payment Transactions" 
+                : `${selectedPaymentMethod} Transactions`}
+            </CardTitle>
             <div className="flex items-center gap-4">
               {/* Items per page selector */}
               <div className="flex items-center gap-2 text-sm">
@@ -639,7 +704,7 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className }) => {
           </div>
         </CardHeader>
         <CardContent>
-          <GCashTransactionTable
+          <VerificationTransactionTable
             transactions={paginatedTransactions}
             onVerify={handleVerify}
             onReject={handleReject}

@@ -33,11 +33,16 @@ export interface VerificationData {
   rejectionReason?: string;
 }
 
-// GCash transaction interface extending SalesRecord
-export interface GCashTransaction extends SalesRecord {
-  paymentMethod: "GCash";
-  receiptUrl: string; // Required for GCash transactions
+// Transaction interface for payment methods that require verification
+export interface VerifiableTransaction extends SalesRecord {
+  paymentMethod: "GCash" | "Maya" | "Bank Transfer";
+  receiptUrl: string; // Required for verifiable transactions
   verification?: VerificationData;
+}
+
+// GCash transaction interface extending SalesRecord (for backward compatibility)
+export interface GCashTransaction extends VerifiableTransaction {
+  paymentMethod: "GCash";
 }
 
 // Verification action interface for API requests
@@ -58,13 +63,21 @@ export interface VerificationStats {
 }
 
 // API response interfaces
-export interface GCashVerificationResponse {
+export interface VerificationResponse {
   success: boolean;
+  data: {
+    transactions: VerifiableTransaction[];
+    stats: VerificationStats;
+  };
+  error?: string;
+}
+
+// GCash verification response (for backward compatibility)
+export interface GCashVerificationResponse extends VerificationResponse {
   data: {
     transactions: GCashTransaction[];
     stats: VerificationStats;
   };
-  error?: string;
 }
 
 export interface VerificationActionResponse {
@@ -97,7 +110,7 @@ export interface PaginationParams {
 
 // Component prop interfaces
 export interface VerificationTableProps {
-  transactions: GCashTransaction[];
+  transactions: VerifiableTransaction[];
   onVerify: (transactionId: string) => void;
   onReject: (transactionId: string, reason: string) => void;
   loading?: boolean;

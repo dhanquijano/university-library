@@ -1,10 +1,11 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Package, 
-  AlertTriangle, 
-  TrendingUp, 
+import BranchFilter from "./BranchFilter";
+import {
+  Package,
+  AlertTriangle,
+  TrendingUp,
   Clock,
   Activity,
   Coins,
@@ -36,9 +37,18 @@ interface RecentActivity {
 interface InventoryDashboardProps {
   stats: InventoryStats;
   recentActivity: RecentActivity[];
+  branches: string[];
+  selectedBranches: string[];
+  onBranchChange: (branches: string[]) => void;
 }
 
-const InventoryDashboard = ({ stats, recentActivity }: InventoryDashboardProps) => {
+const InventoryDashboard = ({
+  stats,
+  recentActivity,
+  branches,
+  selectedBranches,
+  onBranchChange
+}: InventoryDashboardProps) => {
   const getActionColor = (type: string) => {
     switch (type) {
       case 'in': return 'bg-green-100 text-green-800';
@@ -61,6 +71,13 @@ const InventoryDashboard = ({ stats, recentActivity }: InventoryDashboardProps) 
 
   return (
     <div className="space-y-6">
+      {/* Branch Filter */}
+      <BranchFilter
+        branches={branches}
+        selectedBranches={selectedBranches}
+        onBranchChange={onBranchChange}
+      />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

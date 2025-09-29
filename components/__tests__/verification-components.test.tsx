@@ -1,6 +1,6 @@
 /**
- * Unit tests for GCash verification components
- * This test suite covers the core functionality of verification components
+ * Unit tests for digital payment verification components
+ * This test suite covers the core functionality of verification components for GCash, Maya, and Bank Transfer
  */
 
 import React from 'react';
@@ -26,7 +26,6 @@ describe('VerificationTab Integration', () => {
     it('should render verification tab with all components', async () => {
         render(<VerificationTab />);
 
-        expect(screen.getByText('GCash Transaction Verification')).toBeInTheDocument();
-        expect(screen.getByText('Review and verify GCash payments with uploaded receipts')).toBeInTheDocument();
+        expect(screen.getByText('Digital Payment Transactions')).toBeInTheDocument();
     });
 }); 

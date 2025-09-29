@@ -6,21 +6,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { 
-  Package, 
-  TrendingUp, 
-  AlertTriangle, 
+import {
+  Package,
+  TrendingUp,
+  AlertTriangle,
   DollarSign,
   Users,
   ShoppingCart,
   Activity,
-  Settings
+  Settings,
+  BarChart3
 } from "lucide-react";
 
 import InventoryDashboard from "@/components/admin/inventory/InventoryDashboard";
 import ItemManagement from "@/components/admin/inventory/ItemManagement";
 import StockMovement from "@/components/admin/inventory/StockMovement";
 import PurchaseOrders from "@/components/admin/inventory/PurchaseOrders";
+import CostAnalytics from "@/components/admin/inventory/CostAnalytics";
 import InventorySettings from "@/components/admin/inventory/InventorySettings";
 
 // Mock data - in real app, this would come from API
@@ -193,7 +195,7 @@ const mockCategories = ["Tools", "Hair Products", "Cleaning Supplies", "Accessor
 const mockSuppliers = ["Barber Supply Co.", "Beauty Supplies Inc.", "Professional Tools Ltd.", "Hair Care Plus"];
 const mockBranches = [
   "Sanbry Main Branch",
-  "Sanbry Makati", 
+  "Sanbry Makati",
   "Sanbry BGC",
   "Sanbry Ortigas",
   "Sanbry Alabang"
@@ -206,7 +208,10 @@ const InventoryPage = () => {
   const [stockTransactions, setStockTransactions] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
+  // Branch filter state
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+
   // Settings state
   const [categories, setCategories] = useState<string[]>(mockCategories);
   const [suppliers, setSuppliers] = useState<string[]>(mockSuppliers);
@@ -233,13 +238,13 @@ const InventoryPage = () => {
       const response = await fetch('/api/inventory/items');
       if (response.ok) {
         const data = await response.json();
-        
+
         // Recalculate status based on current quantity and reorder threshold
         const itemsWithCorrectStatus = data.map((item: any) => ({
           ...item,
           status: calculateItemStatus(item.quantity, item.reorderThreshold)
         }));
-        
+
         setInventoryItems(itemsWithCorrectStatus);
         console.log(`Loaded ${data.length} inventory items from database`);
       } else {
@@ -380,7 +385,7 @@ const InventoryPage = () => {
     try {
       console.log('Received item data in handleAddItem:', item);
       console.log('Branch value being sent to API:', item.branch);
-      
+
       const response = await fetch('/api/inventory/items', {
         method: 'POST',
         headers: {
@@ -395,13 +400,13 @@ const InventoryPage = () => {
       if (response.ok) {
         const newItem = await response.json();
         toast.success("Item added successfully");
-        
+
         // Recalculate status for the new item
         const itemWithCorrectStatus = {
           ...newItem,
           status: calculateItemStatus(newItem.quantity, newItem.reorderThreshold)
         };
-        
+
         // Add to local state with correct status
         setInventoryItems([...inventoryItems, itemWithCorrectStatus]);
       } else {
@@ -427,15 +432,15 @@ const InventoryPage = () => {
       if (response.ok) {
         const updatedItem = await response.json();
         toast.success("Item updated successfully");
-        
+
         // Recalculate status for the updated item
         const itemWithCorrectStatus = {
           ...updatedItem,
           status: calculateItemStatus(updatedItem.quantity, updatedItem.reorderThreshold)
         };
-        
+
         // Update local state with the corrected status
-        setInventoryItems(inventoryItems.map(item => 
+        setInventoryItems(inventoryItems.map(item =>
           item.id === id ? itemWithCorrectStatus : item
         ));
       } else {
@@ -462,7 +467,7 @@ const InventoryPage = () => {
 
       if (response.ok) {
         toast.success("Item deleted successfully");
-        
+
         // Remove from local state
         setInventoryItems(inventoryItems.filter(item => item.id !== id));
       } else {
@@ -492,7 +497,7 @@ const InventoryPage = () => {
       if (response.ok) {
         const result = await response.json();
         toast.success("Transaction recorded successfully");
-        
+
         // Refresh both transactions and items list to get updated quantities
         fetchStockTransactions();
         fetchInventoryItems();
@@ -523,7 +528,7 @@ const InventoryPage = () => {
       if (response.ok) {
         const result = await response.json();
         toast.success("Purchase order created successfully");
-        
+
         // Refresh the purchase orders list
         fetchPurchaseOrders();
       } else {
@@ -549,16 +554,16 @@ const InventoryPage = () => {
       if (response.ok) {
         const result = await response.json();
         toast.success(`Order status updated to ${status}`);
-        
+
         // Update local state with the updated order
-        setPurchaseOrders(purchaseOrders.map((order: any) => 
-          order.id === orderId 
-            ? { 
-                ...order, 
-                status: result.order.status,
-                orderedDate: result.order.orderedDate,
-                receivedDate: result.order.receivedDate,
-              }
+        setPurchaseOrders(purchaseOrders.map((order: any) =>
+          order.id === orderId
+            ? {
+              ...order,
+              status: result.order.status,
+              orderedDate: result.order.orderedDate,
+              receivedDate: result.order.receivedDate,
+            }
             : order
         ));
 
@@ -600,15 +605,40 @@ const InventoryPage = () => {
       unitPrice: parseFloat(item.unitPrice || '0'),
     }));
 
-  // Calculate real inventory statistics from database data
+  const handleBranchChange = (branches: string[]) => {
+    setSelectedBranches(branches);
+  };
+
+  // Filter data based on selected branches
+  const getFilteredData = () => {
+    if (selectedBranches.length === 0) {
+      return {
+        filteredItems: inventoryItems,
+        filteredTransactions: stockTransactions,
+        filteredOrders: purchaseOrders,
+      };
+    }
+
+    return {
+      filteredItems: inventoryItems.filter(item => selectedBranches.includes(item.branch)),
+      filteredTransactions: stockTransactions.filter(transaction =>
+        transaction.branch && selectedBranches.includes(transaction.branch)
+      ),
+      filteredOrders: purchaseOrders.filter(order => selectedBranches.includes(order.branch)),
+    };
+  };
+
+  // Calculate real inventory statistics from filtered data
   const calculateRealStats = () => {
-    const totalItems = inventoryItems.length;
-    const lowStockCount = inventoryItems.filter(item => item.quantity <= item.reorderThreshold).length;
-    const outOfStockCount = inventoryItems.filter(item => item.quantity === 0).length;
-    const totalValue = inventoryItems.reduce((sum, item) => sum + (item.quantity * parseFloat(item.unitPrice || '0')), 0);
-    const recentTransactionsCount = stockTransactions.length;
-    const pendingOrdersCount = purchaseOrders.filter(order => order.status === 'requested' || order.status === 'ordered').length;
-    
+    const { filteredItems, filteredTransactions, filteredOrders } = getFilteredData();
+
+    const totalItems = filteredItems.length;
+    const lowStockCount = filteredItems.filter(item => item.quantity <= item.reorderThreshold).length;
+    const outOfStockCount = filteredItems.filter(item => item.quantity === 0).length;
+    const totalValue = filteredItems.reduce((sum, item) => sum + (item.quantity * parseFloat(item.unitPrice || '0')), 0);
+    const recentTransactionsCount = filteredTransactions.length;
+    const pendingOrdersCount = filteredOrders.filter(order => order.status === 'requested' || order.status === 'ordered').length;
+
     return {
       totalItems,
       lowStockItems: lowStockCount,
@@ -617,14 +647,16 @@ const InventoryPage = () => {
       totalValue: Math.round(totalValue),
       recentTransactions: recentTransactionsCount,
       pendingOrders: pendingOrdersCount,
-      activeSuppliers: [...new Set(inventoryItems.map(item => item.supplier))].length,
+      activeSuppliers: [...new Set(filteredItems.map(item => item.supplier))].length,
     };
   };
 
-  // Build unified recent activity from items, stock transactions, and purchase orders
+  // Build unified recent activity from filtered data
   const getRealRecentActivity = () => {
+    const { filteredItems, filteredTransactions, filteredOrders } = getFilteredData();
+
     // Stock movements
-    const stockActivity = (stockTransactions || []).map((t: any) => ({
+    const stockActivity = (filteredTransactions || []).map((t: any) => ({
       id: `tx-${t.id}`,
       action: t.type === 'in' ? 'Stock In' : 'Stock Out',
       item: t.itemName || 'Unknown Item',
@@ -635,7 +667,7 @@ const InventoryPage = () => {
     }));
 
     // Item updates (use updatedAt when available)
-    const itemActivity = (inventoryItems || [])
+    const itemActivity = (filteredItems || [])
       .filter((it: any) => it.updatedAt || it.createdAt)
       .map((it: any) => ({
         id: `item-${it.id}`,
@@ -648,7 +680,7 @@ const InventoryPage = () => {
       }));
 
     // Purchase order lifecycle events
-    const poActivity = (purchaseOrders || []).flatMap((po: any) => {
+    const poActivity = (filteredOrders || []).flatMap((po: any) => {
       const totalUnits = (po.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 0), 0);
       const requested: any[] = po.requestedDate ? [{
         id: `po-req-${po.id}`,
@@ -710,10 +742,14 @@ const InventoryPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             Dashboard
+          </TabsTrigger>
+                    <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
           <TabsTrigger value="items" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -734,17 +770,23 @@ const InventoryPage = () => {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
-          <InventoryDashboard 
+          <InventoryDashboard
             stats={realStats}
             recentActivity={realRecentActivity}
+            branches={branches}
+            selectedBranches={selectedBranches}
+            onBranchChange={handleBranchChange}
           />
         </TabsContent>
 
         <TabsContent value="items" className="space-y-6">
-          <ItemManagement 
+          <ItemManagement
             items={inventoryItems}
             categories={categories}
             suppliers={suppliers}
+            branches={branches}
+            selectedBranches={selectedBranches}
+            onBranchChange={handleBranchChange}
             onAddItem={handleAddItem}
             onUpdateItem={handleUpdateItem}
             onDeleteItem={handleDeleteItem}
@@ -752,19 +794,24 @@ const InventoryPage = () => {
         </TabsContent>
 
         <TabsContent value="movement" className="space-y-6">
-          <StockMovement 
+          <StockMovement
             transactions={stockTransactions}
-            items={inventoryItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity }))}
+            items={inventoryItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, branch: item.branch }))}
             users={mockUsers}
+            branches={branches}
+            selectedBranches={selectedBranches}
+            onBranchChange={handleBranchChange}
             onAddTransaction={handleAddTransaction}
           />
         </TabsContent>
 
         <TabsContent value="orders" className="space-y-6">
-          <PurchaseOrders 
+          <PurchaseOrders
             orders={purchaseOrders}
             suppliers={suppliers}
             branches={branches}
+            selectedBranches={selectedBranches}
+            onBranchChange={handleBranchChange}
             lowStockItems={lowStockItems}
             users={mockUsers}
             onCreateOrder={handleCreateOrder}
@@ -774,8 +821,19 @@ const InventoryPage = () => {
           />
         </TabsContent>
 
+        <TabsContent value="analytics" className="space-y-6">
+          <CostAnalytics
+            branches={branches}
+            selectedBranches={selectedBranches}
+            onBranchChange={handleBranchChange}
+            inventoryItems={inventoryItems}
+            stockTransactions={stockTransactions}
+            purchaseOrders={purchaseOrders}
+          />
+        </TabsContent>
+
         <TabsContent value="settings" className="space-y-6">
-          <InventorySettings 
+          <InventorySettings
             categories={categories}
             suppliers={suppliers}
             users={mockUsers}

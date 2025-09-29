@@ -69,7 +69,7 @@ describe('VerificationStats', () => {
 
       expect(screen.getByText('Verification Summary')).toBeInTheDocument();
       expect(screen.getByText('23')).toBeInTheDocument(); // Total transactions
-      expect(screen.getByText('Total GCash Transactions')).toBeInTheDocument();
+      expect(screen.getByText('Total Transactions')).toBeInTheDocument();
       
       // Approval rate should be verified / (verified + rejected) * 100 = 15/18 * 100 = 83%
       expect(screen.getByText('83%')).toBeInTheDocument();

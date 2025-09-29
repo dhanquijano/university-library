@@ -13,11 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { GCashTransaction, VerificationStatus } from "@/types/gcash-verification";
+import { VerifiableTransaction, VerificationStatus } from "@/types/gcash-verification";
 import { ErrorDisplay } from "@/components/ErrorDisplay";
 
 interface VerificationActionsProps {
-  transaction: GCashTransaction;
+  transaction: VerifiableTransaction;
   onVerify: (transactionId: string) => Promise<void>;
   onReject: (transactionId: string, reason: string) => Promise<void>;
   onStateUpdate?: (transactionId: string, newStatus: VerificationStatus) => void;
@@ -45,7 +45,7 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
   const handleVerifyConfirm = async () => {
     setIsVerifying(true);
     setVerifyError(null);
-    
+
     try {
       await onVerify(transaction.id);
       setShowVerifyDialog(false);
@@ -80,7 +80,7 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
 
     setIsRejecting(true);
     setRejectError(null);
-    
+
     try {
       await onReject(transaction.id, trimmedReason);
       setShowRejectDialog(false);
@@ -172,7 +172,7 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
           <DialogHeader>
             <DialogTitle>Verify Transaction</DialogTitle>
             <DialogDescription>
-              Are you sure you want to verify this GCash transaction for{" "}
+              Are you sure you want to verify this {transaction.paymentMethod} transaction for{" "}
               <strong>₱{transaction.net.toLocaleString()}</strong>?
             </DialogDescription>
           </DialogHeader>
@@ -183,7 +183,7 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
               <div><strong>Barber:</strong> {transaction.barber}</div>
               <div><strong>Services:</strong> {transaction.services}</div>
             </div>
-            
+
             {verifyError && (
               <ErrorDisplay
                 error={verifyError}
@@ -225,9 +225,9 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
       <Dialog open={showRejectDialog} onOpenChange={handleRejectDialogClose}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Transaction</DialogTitle>
+            <DialogTitle className="text-white">Reject Transaction</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting this GCash transaction for{" "}
+              Please provide a reason for rejecting this {transaction.paymentMethod} transaction for{" "}
               <strong>₱{transaction.net.toLocaleString()}</strong>.
             </DialogDescription>
           </DialogHeader>
@@ -240,7 +240,7 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
                 <div><strong>Barber:</strong> {transaction.barber}</div>
                 <div><strong>Services:</strong> {transaction.services}</div>
               </div>
-              
+
               {/* Error Display */}
               {rejectError && (
                 <ErrorDisplay
@@ -249,10 +249,10 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
                   showRetry={false}
                 />
               )}
-              
+
               {/* Rejection Reason Input */}
               <div className="space-y-2">
-                <Label htmlFor="rejection-reason">
+                <Label htmlFor="rejection-reason" className="text-white">
                   Rejection Reason <span className="text-red-500">*</span>
                 </Label>
                 <Textarea
