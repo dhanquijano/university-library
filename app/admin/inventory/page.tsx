@@ -15,15 +15,19 @@ import {
   ShoppingCart,
   Activity,
   Settings,
-  BarChart3
+  BarChart3,
+  CheckCircle
 } from "lucide-react";
 
 import InventoryDashboard from "@/components/admin/inventory/InventoryDashboard";
 import ItemManagement from "@/components/admin/inventory/ItemManagement";
 import StockMovement from "@/components/admin/inventory/StockMovement";
 import PurchaseOrders from "@/components/admin/inventory/PurchaseOrders";
+import RequestOrders from "@/components/admin/inventory/RequestOrders";
+import AdminApproval from "@/components/admin/inventory/AdminApproval";
 import CostAnalytics from "@/components/admin/inventory/CostAnalytics";
 import InventorySettings from "@/components/admin/inventory/InventorySettings";
+import { useAdminRole } from "@/lib/admin-utils";
 
 // Mock data - in real app, this would come from API
 const mockInventoryStats = {
@@ -203,10 +207,16 @@ const mockBranches = [
 const mockUsers = ["Admin User", "Manager Sarah", "Barber John", "Barber Mike"];
 
 const InventoryPage = () => {
+  const { user } = useAdminRole();
+  const userRole = user?.role;
+  const isAdmin = userRole === "ADMIN";
+  const isManager = userRole === "MANAGER";
+
   const [activeTab, setActiveTab] = useState("dashboard");
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [stockTransactions, setStockTransactions] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [itemRequests, setItemRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Branch filter state
@@ -229,6 +239,7 @@ const InventoryPage = () => {
     fetchInventoryItems();
     fetchStockTransactions();
     fetchPurchaseOrders();
+    fetchItemRequests();
     fetchBranches();
   }, []);
 
@@ -378,6 +389,26 @@ const InventoryPage = () => {
       console.error('Error fetching branches:', error);
       // Fallback to mock branches if API fails
       setBranches(mockBranches);
+    }
+  };
+
+  const fetchItemRequests = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/inventory/item-requests');
+      if (response.ok) {
+        const data = await response.json();
+        setItemRequests(data);
+        console.log(`Loaded ${data.length} item requests from database`);
+      } else {
+        console.error('Failed to fetch item requests');
+        toast.error('Failed to load item requests');
+      }
+    } catch (error) {
+      console.error('Error fetching item requests:', error);
+      toast.error('Error loading item requests');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -593,6 +624,96 @@ const InventoryPage = () => {
     setSuppliers(newSuppliers);
   };
 
+  const handleCreateRequest = async (request: any) => {
+    try {
+      const response = await fetch('/api/inventory/item-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...request,
+          requestedBy: user?.name || user?.email || 'Manager',
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success("Request submitted successfully");
+
+        // Refresh the requests list
+        fetchItemRequests();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to create request");
+      }
+    } catch (error) {
+      console.error('Error creating request:', error);
+      toast.error("Error creating request");
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string, notes?: string) => {
+    try {
+      const response = await fetch(`/api/inventory/item-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'approve',
+          reviewedBy: user?.name || user?.email || 'Admin',
+          notes,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success("Request approved successfully");
+
+        // Refresh both requests and purchase orders
+        fetchItemRequests();
+        fetchPurchaseOrders();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to approve request");
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
+      toast.error("Error approving request");
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string, reason: string) => {
+    try {
+      const response = await fetch(`/api/inventory/item-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'reject',
+          reviewedBy: user?.name || user?.email || 'Admin',
+          rejectionReason: reason,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success("Request rejected");
+
+        // Refresh the requests list
+        fetchItemRequests();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Failed to reject request");
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      toast.error("Error rejecting request");
+    }
+  };
+
   const lowStockItems = inventoryItems
     .filter(item => item.quantity <= item.reorderThreshold)
     .map(item => ({
@@ -742,12 +863,12 @@ const InventoryPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-6'}`}>
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             Dashboard
           </TabsTrigger>
-                    <TabsTrigger value="analytics" className="flex items-center gap-2">
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Analytics
           </TabsTrigger>
@@ -759,10 +880,23 @@ const InventoryPage = () => {
             <Activity className="h-4 w-4" />
             Stock Movement
           </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-2">
-            <ShoppingCart className="h-4 w-4" />
-            Purchase Orders
-          </TabsTrigger>
+          {isAdmin ? (
+            <TabsTrigger value="orders" className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              Purchase Orders
+            </TabsTrigger>
+          ) : (
+            <TabsTrigger value="requests" className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" />
+              Request Orders
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="approvals" className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Approvals
+            </TabsTrigger>
+          )}
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Settings
@@ -805,21 +939,50 @@ const InventoryPage = () => {
           />
         </TabsContent>
 
-        <TabsContent value="orders" className="space-y-6">
-          <PurchaseOrders
-            orders={purchaseOrders}
-            suppliers={suppliers}
-            branches={branches}
-            selectedBranches={selectedBranches}
-            onBranchChange={handleBranchChange}
-            lowStockItems={lowStockItems}
-            users={mockUsers}
-            onCreateOrder={handleCreateOrder}
-            onUpdateOrderStatus={async (orderId: string, status: any) => {
-              await handleUpdateOrderStatus(orderId, status);
-            }}
-          />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="orders" className="space-y-6">
+            <PurchaseOrders
+              orders={purchaseOrders}
+              suppliers={suppliers}
+              branches={branches}
+              selectedBranches={selectedBranches}
+              onBranchChange={handleBranchChange}
+              lowStockItems={lowStockItems}
+              users={mockUsers}
+              onCreateOrder={handleCreateOrder}
+              onUpdateOrderStatus={async (orderId: string, status: any) => {
+                await handleUpdateOrderStatus(orderId, status);
+              }}
+            />
+          </TabsContent>
+        )}
+
+        {!isAdmin && (
+          <TabsContent value="requests" className="space-y-6">
+            <RequestOrders
+              requests={itemRequests}
+              suppliers={suppliers}
+              branches={branches}
+              selectedBranches={selectedBranches}
+              onBranchChange={handleBranchChange}
+              lowStockItems={lowStockItems}
+              onCreateRequest={handleCreateRequest}
+            />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="approvals" className="space-y-6">
+            <AdminApproval
+              requests={itemRequests}
+              branches={branches}
+              selectedBranches={selectedBranches}
+              onBranchChange={handleBranchChange}
+              onApproveRequest={handleApproveRequest}
+              onRejectRequest={handleRejectRequest}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="analytics" className="space-y-6">
           <CostAnalytics
