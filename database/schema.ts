@@ -206,6 +206,29 @@ export const inventoryBranches = pgTable("inventory_branches", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const itemRequests = pgTable("item_requests", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  requestNumber: text("request_number").notNull().unique(),
+  status: text("status", { enum: ["pending", "approved", "rejected"] })
+    .notNull()
+    .default("pending"),
+  items: text("items").notNull(), // JSON string of requested items
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0"),
+  requestedBy: text("requested_by").notNull(),
+  requestedDate: timestamp("requested_date").defaultNow(),
+  reviewedBy: text("reviewed_by"),
+  reviewedDate: timestamp("reviewed_date"),
+  notes: text("notes"),
+  rejectionReason: text("rejection_reason"),
+  branch: text("branch").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const barbers = pgTable("barbers", {
   id: text("id")
     .primaryKey()

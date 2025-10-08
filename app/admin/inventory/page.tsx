@@ -207,10 +207,40 @@ const mockBranches = [
 const mockUsers = ["Admin User", "Manager Sarah", "Barber John", "Barber Mike"];
 
 const InventoryPage = () => {
-  const { user } = useAdminRole();
+  const { user, isLoading } = useAdminRole();
   const userRole = user?.role;
   const isAdmin = userRole === "ADMIN";
   const isManager = userRole === "MANAGER";
+
+  // Stable role state to prevent UI flickering during session refresh
+  const [stableRole, setStableRole] = useState<string | null>(null);
+  const [stableIsAdmin, setStableIsAdmin] = useState(false);
+  const [stableIsManager, setStableIsManager] = useState(false);
+
+  // Update stable role only when we have a definitive role (not during loading)
+  useEffect(() => {
+    if (!isLoading && userRole) {
+      setStableRole(userRole);
+      setStableIsAdmin(userRole === "ADMIN");
+      setStableIsManager(userRole === "MANAGER");
+      console.log("Stable role updated:", userRole);
+    }
+  }, [userRole, isLoading]);
+
+  // Debug logging
+  console.log("User:", user);
+  console.log("User Role:", userRole);
+  console.log("Is Loading:", isLoading);
+  console.log("Is Admin:", isAdmin);
+  console.log("Is Manager:", isManager);
+  console.log("Stable Role:", stableRole);
+  console.log("Stable Is Admin:", stableIsAdmin);
+  console.log("Stable Is Manager:", stableIsManager);
+
+  // Monitor role changes
+  useEffect(() => {
+    console.log("Role changed - User:", user?.fullName || user?.email, "Role:", userRole);
+  }, [userRole, user]);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
@@ -626,25 +656,33 @@ const InventoryPage = () => {
 
   const handleCreateRequest = async (request: any) => {
     try {
+      console.log('Creating request with data:', request);
+      const requestData = {
+        ...request,
+        requestedBy: user?.name || user?.email || 'Manager',
+      };
+      console.log('Final request data:', requestData);
+
       const response = await fetch('/api/inventory/item-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...request,
-          requestedBy: user?.name || user?.email || 'Manager',
-        }),
+        body: JSON.stringify(requestData),
       });
 
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const result = await response.json();
+        console.log('Request created successfully:', result);
         toast.success("Request submitted successfully");
 
         // Refresh the requests list
         fetchItemRequests();
       } else {
         const error = await response.json();
+        console.error('Request creation failed:', error);
         toast.error(error.error || "Failed to create request");
       }
     } catch (error) {
@@ -655,6 +693,7 @@ const InventoryPage = () => {
 
   const handleApproveRequest = async (requestId: string, notes?: string) => {
     try {
+      console.log('Approving request:', requestId);
       const response = await fetch(`/api/inventory/item-requests/${requestId}`, {
         method: 'PATCH',
         headers: {
@@ -669,13 +708,21 @@ const InventoryPage = () => {
 
       if (response.ok) {
         const result = await response.json();
-        toast.success("Request approved successfully");
+        console.log('Approval result:', result);
+        toast.success("Request approved successfully - Stock updated");
 
-        // Refresh both requests and purchase orders
-        fetchItemRequests();
-        fetchPurchaseOrders();
+        // Refresh all related data since stock was updated
+        console.log('Refreshing data after approval...');
+        await Promise.all([
+          fetchItemRequests(),
+          fetchPurchaseOrders(),
+          fetchInventoryItems(),
+          fetchStockTransactions()
+        ]);
+        console.log('Data refresh completed');
       } else {
         const error = await response.json();
+        console.error('Approval failed:', error);
         toast.error(error.error || "Failed to approve request");
       }
     } catch (error) {
@@ -863,7 +910,7 @@ const InventoryPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-6'}`}>
+        <TabsList className={`grid w-full ${stableIsAdmin ? 'grid-cols-7' : 'grid-cols-6'}`}>
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             Dashboard
@@ -880,18 +927,22 @@ const InventoryPage = () => {
             <Activity className="h-4 w-4" />
             Stock Movement
           </TabsTrigger>
-          {isAdmin ? (
+          {/* Admin sees Purchase Orders and Approvals */}
+          {stableIsAdmin && (
             <TabsTrigger value="orders" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
               Purchase Orders
             </TabsTrigger>
-          ) : (
+          )}
+          {/* Manager sees Request Orders */}
+          {(stableIsManager || !stableIsAdmin) && (
             <TabsTrigger value="requests" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
               Request Orders
             </TabsTrigger>
           )}
-          {isAdmin && (
+          {/* Admin sees Approvals tab */}
+          {stableIsAdmin && (
             <TabsTrigger value="approvals" className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4" />
               Approvals
@@ -939,7 +990,8 @@ const InventoryPage = () => {
           />
         </TabsContent>
 
-        {isAdmin && (
+        {/* Purchase Orders - Only for Admins */}
+        {stableIsAdmin && (
           <TabsContent value="orders" className="space-y-6">
             <PurchaseOrders
               orders={purchaseOrders}
@@ -957,7 +1009,8 @@ const InventoryPage = () => {
           </TabsContent>
         )}
 
-        {!isAdmin && (
+        {/* Request Orders - Only for Managers */}
+        {(stableIsManager || !stableIsAdmin) && (
           <TabsContent value="requests" className="space-y-6">
             <RequestOrders
               requests={itemRequests}
@@ -971,7 +1024,8 @@ const InventoryPage = () => {
           </TabsContent>
         )}
 
-        {isAdmin && (
+        {/* Approvals - Only for Admins */}
+        {stableIsAdmin && (
           <TabsContent value="approvals" className="space-y-6">
             <AdminApproval
               requests={itemRequests}

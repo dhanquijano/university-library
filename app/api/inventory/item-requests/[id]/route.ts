@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { inventoryItems, stockTransactions } from "@/database/schema";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const { action, reviewedBy, notes, rejectionReason } = body;
 
@@ -81,14 +82,17 @@ export async function PATCH(
     const updateResult = await db.execute(updateQuery);
     const updatedRequest = (updateResult as any).rows[0];
 
-    // If approved, create a purchase order
+    // If approved, create a purchase order and update stock
     if (action === 'approve') {
       try {
         const purchaseOrderId = `po-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const orderNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
         // Get items and determine supplier
-        const items = JSON.parse(request.items);
+        console.log('Raw request.items:', request.items);
+        console.log('Type of request.items:', typeof request.items);
+        const items = typeof request.items === 'string' ? JSON.parse(request.items) : request.items;
+        console.log('Parsed items:', items);
         const supplier = items.length > 0 ? "General Supplier" : "Unknown Supplier";
 
         // First, ensure the purchase_orders table exists
@@ -172,10 +176,110 @@ export async function PATCH(
           console.error("Error creating purchase order items:", itemError);
         }
 
-        console.log(`Created purchase order ${orderNumber} from approved request ${updatedRequest.requestNumber}`);
+        // Process each item in the approved request to update stock
+        console.log(`Processing ${items.length} items for stock update...`);
+        console.log('Items to process:', JSON.stringify(items, null, 2));
+        
+        for (const item of items) {
+          try {
+            console.log(`Processing item: ${item.itemName} (ID: ${item.itemId}), Quantity: ${item.quantity}`);
+            
+            // Get current item using Drizzle schema
+            const currentItems = await db
+              .select({ quantity: inventoryItems.quantity })
+              .from(inventoryItems)
+              .where(eq(inventoryItems.id, item.itemId))
+              .limit(1);
+
+            console.log(`Found ${currentItems.length} items in inventory for ID: ${item.itemId}`);
+
+            if (currentItems.length > 0) {
+              const previousQuantity = currentItems[0].quantity;
+              const newQuantity = previousQuantity + parseInt(item.quantity);
+
+              console.log(`Stock update for ${item.itemName}: ${previousQuantity} -> ${newQuantity}`);
+
+              // Get the current user ID (the one who approved the request)
+              let systemUserId = null;
+              try {
+                // First try to find the user who reviewed the request by name/email
+                const reviewerQuery = sql`
+                  SELECT id FROM users WHERE full_name = ${reviewedBy} OR email = ${reviewedBy} LIMIT 1
+                `;
+                const reviewerResult = await db.execute(reviewerQuery);
+                const reviewer = (reviewerResult as any).rows[0];
+                
+                if (reviewer) {
+                  systemUserId = reviewer.id;
+                  console.log(`Found reviewer user: ${systemUserId} (${reviewedBy})`);
+                } else {
+                  // Fallback to first admin user if reviewer not found
+                  const adminUsers = await db.execute(sql`
+                    SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1
+                  `);
+                  const adminUser = (adminUsers as any).rows[0];
+                  if (adminUser) {
+                    systemUserId = adminUser.id;
+                    console.log(`Fallback to admin user: ${systemUserId}`);
+                  } else {
+                    console.log('No admin users found in database');
+                  }
+                }
+              } catch (userError) {
+                console.log('Could not find user for stock transaction:', userError);
+              }
+
+              // Only proceed if we have a valid user ID
+              if (systemUserId) {
+                console.log('Creating stock transaction...');
+                // Create stock transaction using Drizzle schema
+                const newTransaction = await db.insert(stockTransactions).values({
+                  itemId: item.itemId,
+                  type: 'in',
+                  quantity: parseInt(item.quantity),
+                  previousQuantity: previousQuantity,
+                  newQuantity: newQuantity,
+                  userId: systemUserId,
+                  notes: `Stock added from approved request ${updatedRequest.requestNumber}`,
+                  reason: 'Request Approved',
+                  branch: request.branch,
+                }).returning();
+
+                console.log('Stock transaction created:', newTransaction[0]?.id);
+
+                console.log('Updating inventory quantity...');
+                // Update inventory quantity using Drizzle schema
+                const updatedItem = await db
+                  .update(inventoryItems)
+                  .set({ 
+                    quantity: newQuantity,
+                    updatedAt: new Date()
+                  })
+                  .where(eq(inventoryItems.id, item.itemId))
+                  .returning();
+
+                console.log('Inventory updated:', updatedItem[0]?.id);
+                console.log(`Successfully updated stock for item ${item.itemName}: ${previousQuantity} -> ${newQuantity}`);
+              } else {
+                console.error('No admin user found to create stock transaction - skipping stock update');
+              }
+            } else {
+              console.error(`Item not found in inventory: ${item.itemId}`);
+              // Let's also check what items exist in the database
+              const allItems = await db.select({ id: inventoryItems.id, name: inventoryItems.name }).from(inventoryItems).limit(5);
+              console.log('Sample items in database:', allItems);
+            }
+          } catch (stockError) {
+            console.error(`Error updating stock for item ${item.itemName}:`, stockError);
+            console.error('Stock error details:', stockError);
+          }
+        }
+
+        console.log(`Created purchase order ${orderNumber} and updated stock from approved request ${updatedRequest.requestNumber}`);
       } catch (poError) {
-        console.error("Error creating purchase order:", poError);
-        // Don't fail the approval if PO creation fails
+        console.error("Error creating purchase order and updating stock:", poError);
+        console.error("PO Error details:", poError);
+        // Don't fail the approval if PO creation fails, but log the error
       }
     }
 
@@ -196,10 +300,10 @@ export async function PATCH(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const query = sql`
       SELECT 

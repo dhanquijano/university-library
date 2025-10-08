@@ -170,13 +170,13 @@ const VerificationActions: React.FC<VerificationActionsProps> = ({
       <Dialog open={showVerifyDialog} onOpenChange={handleVerifyDialogClose}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Verify Transaction</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-white">Verify Transaction</DialogTitle>
+            <DialogDescription >
               Are you sure you want to verify this {transaction.paymentMethod} transaction for{" "}
               <strong>₱{transaction.net.toLocaleString()}</strong>?
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-4 space-y-4 text-white">
             <div className="space-y-2 text-sm">
               <div><strong>Date:</strong> {transaction.date} {transaction.time}</div>
               <div><strong>Branch:</strong> {transaction.branch}</div>

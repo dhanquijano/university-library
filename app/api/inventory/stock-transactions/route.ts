@@ -42,19 +42,27 @@ export async function GET(req: NextRequest) {
           console.error(`Error fetching item name for ID ${transaction.itemId}:`, error);
         }
 
-        // Get user name
-        let userName = 'Unknown User';
+        // Get user name - handle invalid UUIDs gracefully
+        let userName = 'System User';
         try {
-          const user = await db
-            .select({ fullName: users.fullName })
-            .from(users)
-            .where(eq(users.id, transaction.userId))
-            .limit(1);
-          if (user && user.length > 0) {
-            userName = user[0].fullName;
+          // Check if userId looks like a valid UUID
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(transaction.userId)) {
+            const user = await db
+              .select({ fullName: users.fullName })
+              .from(users)
+              .where(eq(users.id, transaction.userId))
+              .limit(1);
+            if (user && user.length > 0) {
+              userName = user[0].fullName;
+            }
+          } else {
+            // Handle non-UUID user IDs (like 'admin-user-id', 'system', etc.)
+            userName = transaction.userId === 'system' ? 'System' : 'System User';
           }
         } catch (error) {
           console.error(`Error fetching user name for ID ${transaction.userId}:`, error);
+          userName = 'System User';
         }
 
         return {

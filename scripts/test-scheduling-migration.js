@@ -96,3 +96,4 @@ testSchedulingMigration().then(() => {
   console.error('💥 Migration test failed:', error);
   process.exit(1);
 });
+

@@ -47,3 +47,4 @@ CREATE TABLE "shift_templates" (
 INSERT INTO "shift_templates" ("id", "name", "start_time", "end_time", "break_start", "break_end") VALUES
 ('550e8400-e29b-41d4-a716-446655440001', 'Full Day (10-10)', '10:00', '22:00', '13:00', '14:00'),
 ('550e8400-e29b-41d4-a716-446655440002', 'Half Day (12-5)', '12:00', '17:00', NULL, NULL);
+

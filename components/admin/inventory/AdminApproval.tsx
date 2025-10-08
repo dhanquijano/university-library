@@ -22,12 +22,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Eye, 
-  User, 
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  User,
   Calendar,
   Package,
   DollarSign
@@ -84,8 +84,8 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const [rejectionReason, setRejectionReason] = useState("");
 
   // Filter requests based on selected branches
-  const filteredRequests = selectedBranches.length === 0 
-    ? requests 
+  const filteredRequests = selectedBranches.length === 0
+    ? requests
     : requests.filter(request => selectedBranches.includes(request.branch));
 
   // Separate requests by status
@@ -117,7 +117,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
       setIsApproveDialogOpen(false);
       setSelectedRequest(null);
       setApprovalNotes("");
-      toast.success("Request approved successfully");
+      toast.success("Request approved - Stock levels and purchase order updated");
     } catch (error) {
       toast.error("Failed to approve request");
     }
@@ -163,15 +163,15 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   };
 
   const getPriorityBadge = (request: ItemRequest) => {
-    const hasOutOfStock = request.items.some(item => 
-      item.reason.toLowerCase().includes("out of stock") || 
+    const hasOutOfStock = request.items.some(item =>
+      item.reason.toLowerCase().includes("out of stock") ||
       item.reason.toLowerCase().includes("urgent")
     );
-    
+
     if (hasOutOfStock) {
       return <Badge variant="destructive" className="text-xs">High Priority</Badge>;
     }
-    
+
     return <Badge variant="secondary" className="text-xs">Normal</Badge>;
   };
 
@@ -231,30 +231,43 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                     {request.requestedBy}
                   </TableCell>
                   <TableCell>{request.branch}</TableCell>
-                  <TableCell>{request.items.length} items</TableCell>
+                  <TableCell>
+                    <div className="max-w-xs">
+                      {request.items.slice(0, 2).map((item, index) => (
+                        <div key={index} className="text-sm">
+                          {item.itemName} ({item.quantity})
+                        </div>
+                      ))}
+                      {request.items.length > 2 && (
+                        <div className="text-xs text-muted-foreground">
+                          +{request.items.length - 2} more items
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-medium">₱{request.totalAmount.toLocaleString()}</TableCell>
                   <TableCell>
                     {new Date(request.requestedDate).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         onClick={() => handleViewRequest(request)}
                       >
                         <Eye className="h-3 w-3" />
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="default"
                         className="bg-green-600 hover:bg-green-700"
                         onClick={() => handleApproveClick(request)}
                       >
                         <CheckCircle className="h-3 w-3" />
                       </Button>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="destructive"
                         onClick={() => handleRejectClick(request)}
                       >
@@ -304,18 +317,31 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                   <TableCell>{getStatusBadge(request.status)}</TableCell>
                   <TableCell>{request.requestedBy}</TableCell>
                   <TableCell>{request.branch}</TableCell>
-                  <TableCell>{request.items.length} items</TableCell>
+                  <TableCell>
+                    <div className="max-w-xs">
+                      {request.items.slice(0, 2).map((item, index) => (
+                        <div key={index} className="text-sm">
+                          {item.itemName} ({item.quantity})
+                        </div>
+                      ))}
+                      {request.items.length > 2 && (
+                        <div className="text-xs text-muted-foreground">
+                          +{request.items.length - 2} more items
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>₱{request.totalAmount.toLocaleString()}</TableCell>
                   <TableCell>{request.reviewedBy || "-"}</TableCell>
                   <TableCell>
-                    {request.reviewedDate 
+                    {request.reviewedDate
                       ? new Date(request.reviewedDate).toLocaleDateString()
                       : "-"
                     }
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       variant="outline"
                       onClick={() => handleViewRequest(request)}
                     >
@@ -337,9 +363,9 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
       {/* View Request Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Request Details - {selectedRequest?.requestNumber}</DialogTitle>
-            <DialogDescription>
+          <DialogHeader className="text-white">
+            <DialogTitle >Request Details - {selectedRequest?.requestNumber}</DialogTitle>
+            <DialogDescription >
               Review the complete request information
             </DialogDescription>
           </DialogHeader>
@@ -347,34 +373,34 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
           {selectedRequest && (
             <div className="space-y-6">
               {/* Request Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4 tex">
+                <div className="space-y-2 text-white">
                   <Label>Status</Label>
                   <div>{getStatusBadge(selectedRequest.status)}</div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-white">
                   <Label>Priority</Label>
                   <div>{getPriorityBadge(selectedRequest)}</div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-white">
                   <Label>Requested By</Label>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4" />
                     {selectedRequest.requestedBy}
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-white">
                   <Label>Branch</Label>
                   <div>{selectedRequest.branch}</div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-white">
                   <Label>Request Date</Label>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     {new Date(selectedRequest.requestedDate).toLocaleDateString()}
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 text-white">
                   <Label>Total Amount</Label>
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
@@ -384,7 +410,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
               </div>
 
               {/* Items */}
-              <div className="space-y-4">
+              <div className="space-y-4 text-white">
                 <Label>Requested Items</Label>
                 <div className="border rounded-lg">
                   <Table>
@@ -414,7 +440,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
 
               {/* Notes */}
               {selectedRequest.notes && (
-                <div className="space-y-2">
+                <div className="space-y-2 ">
                   <Label>Request Notes</Label>
                   <div className="p-3 bg-muted rounded-lg">
                     {selectedRequest.notes}
@@ -445,16 +471,16 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
       {/* Approve Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
         <DialogContent>
-          <DialogHeader>
+          <DialogHeader className="text-white">
             <DialogTitle>Approve Request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this request? This will create a purchase order.
+              Are you sure you want to approve this request? This will create a purchase order and update stock levels for the requested items.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
+            <div className="space-y-2 ">
+              <Label htmlFor="approval-notes " className="text-white">Approval Notes (Optional)</Label>
               <Textarea
                 id="approval-notes"
                 value={approvalNotes}
@@ -469,7 +495,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
             <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               className="bg-green-600 hover:bg-green-700"
               onClick={handleApproveConfirm}
             >
@@ -482,16 +508,16 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
       {/* Reject Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <DialogContent>
-          <DialogHeader>
+          <DialogHeader className="text-white">
             <DialogTitle>Reject Request</DialogTitle>
             <DialogDescription>
               Please provide a reason for rejecting this request.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 ">
             <div className="space-y-2">
-              <Label htmlFor="rejection-reason">Rejection Reason *</Label>
+              <Label htmlFor="rejection-reason " className="text-white">Rejection Reason *</Label>
               <Textarea
                 id="rejection-reason"
                 value={rejectionReason}
@@ -507,7 +533,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
             <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               variant="destructive"
               onClick={handleRejectConfirm}
               disabled={!rejectionReason.trim()}

@@ -1,47 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
-import { sql } from "drizzle-orm";
+import { sql, desc } from "drizzle-orm";
+import { itemRequests } from "@/database/schema";
 
-// Ensure the item_requests table exists
-async function ensureItemRequestsTable() {
-  try {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS item_requests (
-        id TEXT PRIMARY KEY,
-        request_number TEXT UNIQUE NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        items JSONB NOT NULL,
-        total_amount NUMERIC(10,2) NOT NULL,
-        requested_by TEXT NOT NULL,
-        requested_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        reviewed_by TEXT,
-        reviewed_date TIMESTAMPTZ,
-        notes TEXT,
-        rejection_reason TEXT,
-        branch TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
 
-    // Create index on status for faster queries
-    await db.execute(sql`
-      CREATE INDEX IF NOT EXISTS idx_item_requests_status ON item_requests(status)
-    `);
-
-    // Create index on branch for filtering
-    await db.execute(sql`
-      CREATE INDEX IF NOT EXISTS idx_item_requests_branch ON item_requests(branch)
-    `);
-
-    console.log("Item requests table ensured");
-  } catch (error) {
-    console.error("Error ensuring item requests table:", error);
-  }
-}
 
 export async function GET(req: NextRequest) {
-  await ensureItemRequestsTable();
 
   try {
     const { searchParams } = new URL(req.url);
@@ -100,10 +64,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await ensureItemRequestsTable();
-
   try {
     const body = await req.json();
+    console.log('Received request body:', body);
     const { items, totalAmount, notes, branch, requestedBy } = body;
 
     // Validate required fields
@@ -128,47 +91,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate unique request ID and number
-    const id = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    // Generate unique request number
     const requestNumber = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    // Insert the request
-    const insertQuery = sql`
-      INSERT INTO item_requests (
-        id, 
-        request_number, 
-        status, 
-        items, 
-        total_amount, 
-        requested_by, 
-        notes, 
-        branch
-      )
-      VALUES (
-        ${id}, 
-        ${requestNumber}, 
-        'pending', 
-        ${JSON.stringify(items)}, 
-        ${totalAmount}, 
-        ${requestedBy || 'Manager'}, 
-        ${notes || null}, 
-        ${branch}
-      )
-      RETURNING 
-        id,
-        request_number as "requestNumber",
-        status,
-        items,
-        total_amount as "totalAmount",
-        requested_by as "requestedBy",
-        requested_date as "requestedDate",
-        notes,
-        branch
-    `;
-
-    const result = await db.execute(insertQuery);
-    const newRequest = (result as any).rows[0];
-
+    // Insert the request using Drizzle schema
+    const [newRequest] = await db.insert(itemRequests).values({
+      requestNumber,
+      status: 'pending',
+      items: JSON.stringify(items),
+      totalAmount: totalAmount.toString(),
+      requestedBy: requestedBy || 'Manager',
+      notes: notes || null,
+      branch,
+    }).returning({
+      id: itemRequests.id,
+      requestNumber: itemRequests.requestNumber,
+      status: itemRequests.status,
+      items: itemRequests.items,
+      totalAmount: itemRequests.totalAmount,
+      requestedBy: itemRequests.requestedBy,
+      requestedDate: itemRequests.requestedDate,
+      notes: itemRequests.notes,
+      branch: itemRequests.branch,
+    });
+    
+    console.log('Request created successfully:', newRequest);
+    console.log('Items type:', typeof newRequest.items);
+    console.log('Items value:', newRequest.items);
+    
+    // The items should already be in the correct format from the database
     return NextResponse.json(newRequest, { status: 201 });
   } catch (error) {
     console.error("Error creating item request:", error);
