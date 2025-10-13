@@ -50,9 +50,12 @@ const DateTimeSelection = ({
     {/* Date Selection */}
     <div className="mb-4">
       {availableDates.length === 0 ? (
-        <div className="text-center py-4 text-gray-500">
-          <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No available dates for this barber</p>
+        <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+          <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+          <p className="font-medium text-gray-600">No available dates</p>
+          <p className="text-sm text-gray-500 mt-1">
+            This barber is currently not available for booking
+          </p>
         </div>
       ) : (
         <FormField

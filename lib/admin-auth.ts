@@ -28,6 +28,16 @@ export async function checkAdminPermission(req: NextRequest) {
     };
   } catch (error) {
     console.error("Error checking admin permission:", error);
+    
+    // If it's a session refresh issue, return a more specific error
+    if (error instanceof Error && error.message.includes("session")) {
+      return {
+        authorized: false,
+        error: "Session refresh in progress. Please try again.",
+        status: 401
+      };
+    }
+    
     return {
       authorized: false,
       error: "Authentication error",

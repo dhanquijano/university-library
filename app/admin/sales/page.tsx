@@ -50,52 +50,7 @@ const VerificationTabWrapper = ({
   adminLoading: boolean;
   onRefreshSalesData?: () => void;
 }) => {
-  const [hasBeenAdmin, setHasBeenAdmin] = useState(() => {
-    // Check localStorage for persistent admin status
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('hasBeenAdmin') === 'true';
-    }
-    return false;
-  });
-
-  // Once user has been confirmed as admin, keep the tab available and persist it
-  useEffect(() => {
-    if (isAdmin && !adminLoading) {
-      setHasBeenAdmin(true);
-      // Persist admin status in localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('hasBeenAdmin', 'true');
-      }
-    }
-  }, [isAdmin, adminLoading]);
-
-  // Clear admin status if user explicitly logs out or session is completely invalid
-  useEffect(() => {
-    if (!adminLoading && !isAdmin && hasBeenAdmin) {
-      // Only clear if we're sure the session is invalid (not just refreshing)
-      const checkSessionValidity = async () => {
-        try {
-          const response = await fetch('/api/auth/session');
-          const session = await response.json();
-          if (!session || !session.user) {
-            // Session is completely invalid, clear admin status
-            setHasBeenAdmin(false);
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('hasBeenAdmin');
-            }
-          }
-        } catch (error) {
-          console.log('Session check failed, keeping admin status for now');
-        }
-      };
-
-      // Delay the check to avoid clearing during normal session refresh
-      const timeoutId = setTimeout(checkSessionValidity, 5000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isAdmin, adminLoading, hasBeenAdmin]);
-
-  if (hasBeenAdmin || isAdmin) {
+  if (isAdmin) {
     return <VerificationTab key="verification-component" onRefreshSalesData={onRefreshSalesData} />;
   }
 
@@ -116,39 +71,6 @@ const VerificationTabWrapper = ({
         <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
         <p className="text-gray-600">You need admin privileges to access the verification panel.</p>
-        <div className="mt-4 p-4 bg-gray-100 rounded text-left text-xs">
-          <p><strong>Debug Info:</strong></p>
-          <p>isAdmin: {String(isAdmin)}</p>
-          <p>adminLoading: {String(adminLoading)}</p>
-          <p>hasBeenAdmin: {String(hasBeenAdmin)}</p>
-          <button
-            onClick={async () => {
-              console.log('Manual session check:', { isAdmin, adminLoading });
-              // Clear localStorage and force session refresh
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('hasBeenAdmin');
-              }
-              // Force NextAuth session refresh
-              const { signIn } = await import('next-auth/react');
-              window.location.href = '/api/auth/signin';
-            }}
-            className="mt-2 px-3 py-1 bg-blue-500 text-white rounded text-xs"
-          >
-            Re-authenticate
-          </button>
-          <button
-            onClick={() => {
-              // Force admin status for testing
-              setHasBeenAdmin(true);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('hasBeenAdmin', 'true');
-              }
-            }}
-            className="mt-2 ml-2 px-3 py-1 bg-green-500 text-white rounded text-xs"
-          >
-            Force Admin (Test)
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -215,70 +137,38 @@ const toCsv = (rows: any[]) => {
 };
 
 const SalesManagementPage = () => {
-  // Admin role checking
+  // Admin role checking with stable state
   const { isAdmin, isLoading: adminLoading } = useAdminRole();
-  const [persistentAdminStatus, setPersistentAdminStatus] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('hasBeenAdmin') === 'true';
-    }
-    return false;
-  });
+  
+  // Stable admin state to prevent UI flickering during session refresh
+  const [stableIsAdmin, setStableIsAdmin] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Update persistent admin status when session confirms admin
+  // Update stable admin status only when we have a definitive role (not during loading)
   useEffect(() => {
-    if (isAdmin && !adminLoading) {
-      setPersistentAdminStatus(true);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('hasBeenAdmin', 'true');
-      }
+    if (!adminLoading && isAdmin !== undefined) {
+      setStableIsAdmin(isAdmin);
+      setHasInitialized(true);
+      console.log("Stable admin status updated:", isAdmin);
     }
   }, [isAdmin, adminLoading]);
 
-  // Use persistent admin status or current session admin status
-  const effectiveIsAdmin = persistentAdminStatus || isAdmin;
+  // Use stable admin status
+  const effectiveIsAdmin = hasInitialized ? stableIsAdmin : isAdmin;
 
   // Debug logging
   useEffect(() => {
-    console.log('Admin state:', { isAdmin, adminLoading });
-  }, [isAdmin, adminLoading]);
-
-  // More detailed session debugging
-  const { data: session, status, update } = useSession();
-  useEffect(() => {
-    console.log('Session debug:', {
-      status,
-      session,
-      user: session?.user,
-      role: session?.user?.role,
-      isAdmin: session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER"
+    console.log('Admin state:', { 
+      isAdmin, 
+      adminLoading, 
+      stableIsAdmin, 
+      effectiveIsAdmin, 
+      hasInitialized 
     });
-  }, [session, status]);
+  }, [isAdmin, adminLoading, stableIsAdmin, effectiveIsAdmin, hasInitialized]);
 
-  // Auto-refresh session periodically to maintain admin status
-  useEffect(() => {
-    if (effectiveIsAdmin) {
-      const interval = setInterval(async () => {
-        console.log('Refreshing session to maintain admin status...');
-        try {
-          await update(); // This refreshes the NextAuth session
-        } catch (error) {
-          console.error('Failed to refresh session:', error);
-        }
-      }, 25000); // Refresh every 25 seconds, before the 30-second timeout
-
-      return () => clearInterval(interval);
-    }
-  }, [effectiveIsAdmin, update]);
-
-  // Clear persistent admin status if user is completely logged out
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      setPersistentAdminStatus(false);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('hasBeenAdmin');
-      }
-    }
-  }, [status]);
+  // Session for user data
+  const { data: session } = useSession();
 
   const [rangeType, setRangeType] = useState<
     "daily" | "weekly" | "monthly" | "custom"

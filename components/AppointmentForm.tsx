@@ -84,12 +84,13 @@ const AppointmentForm = () => {
     fetchAppointmentData();
   }, []);
 
-  // Fetch barbers when branch changes
+  // Fetch ALL barbers when branch changes (not just available ones)
   useEffect(() => {
-    const fetchBarbersForBranch = async (branchId: string) => {
+    const fetchAllBarbersForBranch = async (branchId: string) => {
       try {
+        // Fetch all barbers for the branch, regardless of availability
         const response = await fetch(
-          `/api/appointments/data?branchId=${branchId}`,
+          `/api/appointments/data?branchId=${branchId}&includeAll=true`,
         );
         const result = await response.json();
 
@@ -105,7 +106,7 @@ const AppointmentForm = () => {
     };
 
     if (selectedBranch) {
-      fetchBarbersForBranch(selectedBranch);
+      fetchAllBarbersForBranch(selectedBranch);
     } else {
       setAvailableBarbers([]);
     }
@@ -316,7 +317,8 @@ const AppointmentForm = () => {
             <BarberSelection 
               form={form} 
               availableBarbers={availableBarbers} 
-              onBarberChange={handleBarberChange} 
+              onBarberChange={handleBarberChange}
+              selectedBranch={selectedBranch}
             />
           )}
 
@@ -327,10 +329,14 @@ const AppointmentForm = () => {
             />
           )}
 
-          {selectedBarber && availableDates.length === 0 && (
+          {selectedBarber && selectedBarber !== 'no_preference' && availableDates.length === 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-yellow-800">
-                No available dates found for the selected barber. The barber may not have any scheduled shifts in the coming days.
+                <strong>This barber is currently not available for booking.</strong>
+              </p>
+              <p className="text-yellow-700 text-sm mt-1">
+                The barber may not have any scheduled shifts in the coming days, or may be on leave. 
+                Please select a different barber or choose "No Preference" to see available options.
               </p>
             </div>
           )}

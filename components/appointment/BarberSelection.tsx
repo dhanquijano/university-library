@@ -21,13 +21,63 @@ interface BarberSelectionProps {
   form: any;
   availableBarbers: Barber[];
   onBarberChange: (barberId: string) => void;
+  selectedBranch?: string;
 }
 
 const BarberSelection = ({ 
   form, 
   availableBarbers, 
-  onBarberChange 
+  onBarberChange,
+  selectedBranch 
 }: BarberSelectionProps) => {
+  const [barberAvailability, setBarberAvailability] = React.useState<Record<string, boolean>>({});
+  const [checkingAvailability, setCheckingAvailability] = React.useState(false);
+
+  // Check availability for all barbers when component mounts or branch changes
+  React.useEffect(() => {
+    const checkAllBarbersAvailability = async () => {
+      if (!selectedBranch || availableBarbers.length === 0) {
+        setBarberAvailability({});
+        setCheckingAvailability(false);
+        return;
+      }
+
+      setCheckingAvailability(true);
+      
+      try {
+        const availabilityPromises = availableBarbers.map(async (barber) => {
+          try {
+            const response = await fetch(
+              `/api/appointments/available-dates?barberId=${barber.id}&branchId=${selectedBranch}`
+            );
+            const result = await response.json();
+            return {
+              barberId: barber.id,
+              hasAvailability: result.success && result.data.availableDates.length > 0
+            };
+          } catch (error) {
+            console.error(`Error checking availability for barber ${barber.id}:`, error);
+            return {
+              barberId: barber.id,
+              hasAvailability: false
+            };
+          }
+        });
+
+        const results = await Promise.all(availabilityPromises);
+        const availabilityMap = results.reduce((acc, result) => {
+          acc[result.barberId] = result.hasAvailability;
+          return acc;
+        }, {} as Record<string, boolean>);
+
+        setBarberAvailability(availabilityMap);
+      } finally {
+        setCheckingAvailability(false);
+      }
+    };
+
+    checkAllBarbersAvailability();
+  }, [selectedBranch, availableBarbers]);
   const renderBarberInfo = (barber: Barber | "no_preference") => {
     if (barber === "no_preference") {
       return (
@@ -40,16 +90,25 @@ const BarberSelection = ({
       );
     }
 
+    const hasAvailability = barberAvailability[barber.id] ?? true;
+
     return (
       <div className="flex flex-col w-full items-center text-center">
         <div className="flex items-center justify-center gap-2">
-          <span className="font-medium">{barber.name}</span>
+          <span className={`font-medium ${!hasAvailability ? 'text-gray-400' : ''}`}>
+            {barber.name}
+          </span>
           <div className="flex items-center gap-1">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
             <span className="text-sm">{barber.rating}</span>
           </div>
+          {!hasAvailability && (
+            <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-500">
+              No availability
+            </Badge>
+          )}
         </div>
-        <span className="text-sm text-gray-500">
+        <span className={`text-sm ${!hasAvailability ? 'text-gray-400' : 'text-gray-500'}`}>
           {barber.experience} experience
         </span>
         <div className="flex flex-wrap gap-1 mt-1 justify-center">
@@ -57,12 +116,17 @@ const BarberSelection = ({
             <Badge
               key={specialty}
               variant="secondary"
-              className="text-xs"
+              className={`text-xs ${!hasAvailability ? 'bg-gray-100 text-gray-400' : ''}`}
             >
               {specialty}
             </Badge>
           ))}
         </div>
+        {!hasAvailability && (
+          <span className="text-xs text-gray-400 mt-1">
+            Currently not available for booking
+          </span>
+        )}
       </div>
     );
   };
@@ -72,6 +136,12 @@ const BarberSelection = ({
       <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
         <Scissors className="h-5 w-5" />
         Select Barber
+        {checkingAvailability && (
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+            <span className="text-sm text-gray-500">Checking availability...</span>
+          </div>
+        )}
       </h2>
 
       <FormField

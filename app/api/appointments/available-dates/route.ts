@@ -19,10 +19,13 @@ export async function GET(request: NextRequest) {
     // Get today's date in YYYY-MM-DD format
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-
+    
+    console.log(`Today's date: ${todayStr}`);
+    console.log(`Current time: ${today.toISOString()}`);
     console.log(`Checking availability for barber ${barberId} at branch ${branchId}`);
 
     // Get shifts from database for this barber and branch, starting from today
+    // Use a more explicit date comparison to ensure we don't include past dates
     const barberShifts = await db
       .select()
       .from(staffShifts)
@@ -33,6 +36,8 @@ export async function GET(request: NextRequest) {
           gte(staffShifts.date, todayStr)
         )
       );
+    
+    console.log(`Query used: barberId=${barberId}, branchId=${branchId}, date >= ${todayStr}`);
 
     console.log(`Barber shifts found: ${barberShifts.length}`, barberShifts);
 
@@ -54,22 +59,48 @@ export async function GET(request: NextRequest) {
     const leaveDates = new Set(barberLeaves.map((leave: any) => leave.date));
 
     // Get unique dates where barber has shifts and is not on leave
+    // Also ensure we only include dates that are today or in the future
     const availableDates = [...new Set(
       barberShifts
         .map((shift: any) => shift.date)
-        .filter((date: string) => !leaveDates.has(date))
+        .filter((date: string) => {
+          // Double-check that the date is not in the past
+          const shiftDate = new Date(date + 'T00:00:00');
+          const todayDate = new Date(todayStr + 'T00:00:00');
+          return shiftDate >= todayDate && !leaveDates.has(date);
+        })
     )].sort();
 
     console.log(`Final available dates: ${availableDates.length}`, availableDates);
+    
+    // Log each date with comparison to today
+    availableDates.forEach(date => {
+      const dateObj = new Date(date + 'T00:00:00');
+      const todayObj = new Date(todayStr + 'T00:00:00');
+      console.log(`Date ${date}: ${dateObj >= todayObj ? 'FUTURE' : 'PAST'}`);
+    });
 
-    console.log(`Available dates for barber ${barberId} at branch ${branchId}:`, availableDates);
+    // Final safety check: absolutely ensure no past dates are returned
+    const finalAvailableDates = availableDates.filter(date => {
+      const dateObj = new Date(date + 'T00:00:00');
+      const todayObj = new Date(todayStr + 'T00:00:00');
+      const isFuture = dateObj >= todayObj;
+      
+      if (!isFuture) {
+        console.log(`FILTERING OUT PAST DATE: ${date}`);
+      }
+      
+      return isFuture;
+    });
+
+    console.log(`Final filtered available dates for barber ${barberId} at branch ${branchId}:`, finalAvailableDates);
 
     return NextResponse.json({
       success: true,
       data: {
         barberId,
         branchId,
-        availableDates
+        availableDates: finalAvailableDates
       }
     });
   } catch (error) {

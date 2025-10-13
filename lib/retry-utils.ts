@@ -81,7 +81,16 @@ export async function retryFetch(
 
       clearTimeout(timeoutId);
 
-      // Don't retry on client errors (4xx), only server errors (5xx) and network errors
+      // Special handling for authentication errors during session refresh
+      if (response.status === 401) {
+        const responseText = await response.text();
+        if (responseText.includes('session') || responseText.includes('Authentication')) {
+          throw new Error('Session refresh in progress - retrying');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      // Don't retry on other client errors (4xx), only server errors (5xx) and network errors
       if (!response.ok && response.status >= 400 && response.status < 500) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -162,6 +171,9 @@ export function isRetryableError(error: Error): boolean {
   // Retry network errors and 5xx server errors
   if (isNetworkError(error)) return true;
   
+  // Retry session refresh errors
+  if (error.message.includes('Session refresh in progress')) return true;
+  
   // Check for HTTP status codes in error message
   const statusMatch = error.message.match(/HTTP (\d+):/);
   if (statusMatch) {
@@ -178,6 +190,10 @@ export function isRetryableError(error: Error): boolean {
 export function getUserFriendlyErrorMessage(error: Error): string {
   if (isNetworkError(error)) {
     return "Unable to connect to the server. Please check your internet connection and try again.";
+  }
+  
+  if (error.message.includes('Session refresh in progress')) {
+    return "Session is refreshing. Please wait a moment and try again.";
   }
   
   if (error.message.includes('HTTP 401')) {

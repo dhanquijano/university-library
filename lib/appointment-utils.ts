@@ -1,5 +1,5 @@
 import { db } from "@/database/drizzle";
-import { appointments, staffShifts, staffLeaves } from "@/database/schema";
+import { appointments, staffShifts, staffLeaves, inventoryBranches, barbers } from "@/database/schema";
 import { eq, and } from "drizzle-orm";
 
 export interface TimeSlot {
@@ -49,19 +49,14 @@ export const getAvailableTimeSlots = async (
   branchId: string,
 ): Promise<TimeSlot[]> => {
   try {
-    // Get branch and barber names from the IDs
-    const [branchesResponse, barbersResponse] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/branches.json`),
-      fetch(`${process.env.NEXT_PUBLIC_API_ENDPOINT}/barbers.json`),
+    // Get branch and barber names from the database
+    const [branchesData, barbersData] = await Promise.all([
+      db.select().from(inventoryBranches),
+      db.select().from(barbers),
     ]);
 
-    const [branches, barbers] = await Promise.all([
-      branchesResponse.json(),
-      barbersResponse.json(),
-    ]);
-
-    const branch = branches.find((b: any) => b.id === branchId);
-    const barber = barbers.find((b: any) => b.id === barberId);
+    const branch = branchesData.find((b: any) => b.id === branchId);
+    const barber = barbersData.find((b: any) => b.id === barberId);
 
     const branchName = branch?.name || branchId;
     const barberName = barber?.name || barberId;
@@ -140,17 +135,26 @@ export const getAvailableTimeSlots = async (
   }
 };
 
-// Get available dates for the next 30 days
+// Get available dates for the next 30 days (starting from tomorrow if it's late in the day)
 export const getAvailableDates = (): string[] => {
   const dates: string[] = [];
-  const today = new Date();
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  // If it's after 6 PM, start from tomorrow instead of today
+  const startOffset = currentHour >= 18 ? 1 : 0;
 
-  for (let i = 0; i < 30; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
+  for (let i = startOffset; i < 30 + startOffset; i++) {
+    const date = new Date(now);
+    date.setDate(now.getDate() + i);
 
-    // Include all days - no restrictions
-    dates.push(date.toISOString().split("T")[0]);
+    // Only include future dates
+    const dateStr = date.toISOString().split("T")[0];
+    const todayStr = now.toISOString().split("T")[0];
+    
+    if (dateStr >= todayStr) {
+      dates.push(dateStr);
+    }
   }
 
   console.log("Generated available dates:", dates);

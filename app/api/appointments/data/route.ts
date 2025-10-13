@@ -1,28 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAvailableDates } from "@/lib/appointment-utils";
 import redis from "@/database/redis";
+import { db } from "@/database/drizzle";
+import { inventoryBranches, barbers, servicesCatalog } from "@/database/schema";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get("branchId");
+    const includeAll = searchParams.get("includeAll") === "true";
 
-
-  const [branchesResponse, barbersResponse, servicesResponse] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/branches/unified`),
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/barbers`),
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/services`)
-    ]);
-
-
-  const [unifiedBranches, allBarbers, services] = await Promise.all([
-      branchesResponse.json(),
-      barbersResponse.json(),
-      servicesResponse.json(),
+    // Fetch data directly from database instead of making HTTP calls
+    const [unifiedBranches, allBarbers, allServices] = await Promise.all([
+      db.select().from(inventoryBranches),
+      db.select().from(barbers),
+      db.select().from(servicesCatalog),
     ]);
 
     // Transform unified branches to appointment format
-    const branches = unifiedBranches.map((branch: any) => ({
+    const branchesData = unifiedBranches.map((branch: any) => ({
       id: branch.originalId || branch.id,
       name: branch.name,
       address: branch.address,
@@ -34,38 +30,59 @@ export async function GET(request: NextRequest) {
     const availableDates = getAvailableDates();
     console.log("Available dates from API:", availableDates);
 
-    // Filter barbers based on selected branch and actual scheduled shifts in the next 30 days
-    let barbers = allBarbers;
+    // Filter barbers based on selected branch and availability requirements
+    let barbersData = allBarbers;
     if (branchId) {
       // First, filter by branch membership
       const branchEligible = allBarbers.filter(
         (barber: any) => barber.branches && barber.branches.includes(branchId),
       );
 
-      // Then, cross-check with shifts from Redis; include only those with any shift on any available date for this branch
-      const shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
-      const availableDateSet = new Set(availableDates);
-      const scheduledBarberIds = new Set(
-        shifts
-          .filter(
-            (s: any) =>
-              s.branchId === branchId &&
-              s.barberId &&
-              s.date &&
-              availableDateSet.has(s.date),
-          )
-          .map((s: any) => s.barberId),
-      );
+      if (includeAll) {
+        // Return ALL barbers for this branch, regardless of availability
+        barbersData = branchEligible;
+      } else {
+        // Original behavior: only return barbers with scheduled shifts
+        let shifts: any[] = [];
+        
+        try {
+          if (redis) {
+            shifts = ((await redis.get("scheduling:shifts")) as any[]) || [];
+          }
+        } catch (error) {
+          console.warn("Failed to get shifts from Redis:", error);
+          // Fallback: return all eligible barbers if Redis is unavailable
+          barbersData = branchEligible;
+        }
+        
+        if (shifts.length > 0) {
+          const availableDateSet = new Set(availableDates);
+          const scheduledBarberIds = new Set(
+            shifts
+              .filter(
+                (s: any) =>
+                  s.branchId === branchId &&
+                  s.barberId &&
+                  s.date &&
+                  availableDateSet.has(s.date),
+              )
+              .map((s: any) => s.barberId),
+          );
 
-      barbers = branchEligible.filter((b: any) => scheduledBarberIds.has(b.id));
+          barbersData = branchEligible.filter((b: any) => scheduledBarberIds.has(b.id));
+        } else {
+          // If no shifts data, return all eligible barbers
+          barbersData = branchEligible;
+        }
+      }
     }
 
-  return NextResponse.json({
+    return NextResponse.json({
       success: true,
       data: {
-        branches,
-        barbers,
-        services: services.map((s: any) => ({
+        branches: branchesData,
+        barbers: barbersData,
+        services: allServices.map((s: any) => ({
           category: s.category,
           title: s.title,
           description: s.description,

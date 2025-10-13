@@ -110,7 +110,12 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className, onRefreshS
         onRetry: (attempt, error) => {
           console.log(`Retry attempt ${attempt} for loading data:`, error.message);
           if (showToast) {
-            toast.info(`Retrying... (${attempt}/3)`);
+            // Check if it's a session refresh issue
+            if (error.message.includes("session") || error.message.includes("Authentication")) {
+              toast.info("Session refreshing, retrying...");
+            } else {
+              toast.info(`Retrying... (${attempt}/3)`);
+            }
           }
         }
       });
@@ -118,6 +123,10 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className, onRefreshS
       const result = await response.json();
       
       if (!result.success) {
+        // Handle session refresh errors more gracefully
+        if (result.error?.includes("session") || result.error?.includes("Authentication")) {
+          throw new Error("Session refresh in progress. Please wait a moment and try again.");
+        }
         throw new Error(result.error || "Failed to load verification data");
       }
 
@@ -137,12 +146,31 @@ const VerificationTab: React.FC<VerificationTabProps> = ({ className, onRefreshS
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedPaymentMethod]);
 
   // Load data on component mount and when payment method changes
   useEffect(() => {
     loadData();
-  }, [selectedPaymentMethod]);
+  }, [loadData, selectedPaymentMethod]);
+
+  // Auto-retry on session refresh
+  useEffect(() => {
+    let retryTimeout: NodeJS.Timeout;
+    
+    if (error && error.message.includes('session')) {
+      console.log('Session error detected, will retry in 2 seconds');
+      retryTimeout = setTimeout(() => {
+        console.log('Auto-retrying after session error');
+        loadData(false); // Don't show toast for auto-retry
+      }, 2000);
+    }
+    
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [error, loadData]);
 
   // Handle verification action with retry logic
   const handleVerify = async (transactionId: string) => {

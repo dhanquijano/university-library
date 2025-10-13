@@ -12,10 +12,14 @@ export function useAdminRole() {
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
   
+  // Handle session refresh scenarios
+  const isRefreshing = status === "loading" && session === undefined;
+  
   return {
     isAdmin,
     isLoading,
     isAuthenticated,
+    isRefreshing,
     user: session?.user,
   };
 }

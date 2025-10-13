@@ -5,12 +5,11 @@ import { inventoryBranches } from '@/database/schema';
 // GET: List all branches using unified branch system
 export async function GET() {
   try {
-    // Fetch from unified branch API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/branches/unified`);
-    const unifiedBranches = await response.json();
+    // Fetch directly from database instead of making HTTP call
+    const unifiedBranches = await db.select().from(inventoryBranches);
     
     // Transform to inventory format if needed
-    const inventoryBranches = unifiedBranches.map((branch: any) => ({
+    const inventoryBranchesData = unifiedBranches.map((branch: any) => ({
       id: branch.id,
       name: branch.name,
       address: branch.address,
@@ -19,7 +18,7 @@ export async function GET() {
       createdAt: branch.createdAt
     }));
     
-    return NextResponse.json(inventoryBranches);
+    return NextResponse.json(inventoryBranchesData);
   } catch (error) {
     console.error('Error fetching branches:', error);
     return NextResponse.json({ error: 'Failed to fetch branches' }, { status: 500 });
