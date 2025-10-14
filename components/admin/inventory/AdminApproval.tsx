@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useBranchMap, useAdminRole } from "@/lib/admin-utils";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,9 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   onApproveRequest,
   onRejectRequest,
 }) => {
+  const { getBranchName } = useBranchMap();
+  const { userRole } = useAdminRole();
+  const isManager = userRole === "MANAGER";
   const [selectedRequest, setSelectedRequest] = useState<ItemRequest | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
@@ -192,12 +196,14 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
         </div>
       </div>
 
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
 
       {/* Pending Requests */}
       <Card>
@@ -230,7 +236,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                     <User className="h-4 w-4" />
                     {request.requestedBy}
                   </TableCell>
-                  <TableCell>{request.branch}</TableCell>
+                  <TableCell>{getBranchName(request.branch)}</TableCell>
                   <TableCell>
                     <div className="max-w-xs">
                       {request.items.slice(0, 2).map((item, index) => (
@@ -316,7 +322,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                   <TableCell className="font-medium">{request.requestNumber}</TableCell>
                   <TableCell>{getStatusBadge(request.status)}</TableCell>
                   <TableCell>{request.requestedBy}</TableCell>
-                  <TableCell>{request.branch}</TableCell>
+                  <TableCell>{getBranchName(request.branch)}</TableCell>
                   <TableCell>
                     <div className="max-w-xs">
                       {request.items.slice(0, 2).map((item, index) => (

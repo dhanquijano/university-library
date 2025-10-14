@@ -13,7 +13,10 @@
     "seed": "npx tsx database/seed.ts",
     "db:generate": "npx drizzle-kit generate",
     "db:migrate": "npx drizzle-kit migrate",
-    "db:studio": "npx drizzle-kit studio"
+    "db:studio": "npx drizzle-kit studio",
+    "migrate:users": "node scripts/run-migration.js",
+    "rollback:users": "node scripts/rollback-users-branch-to-status.js",
+    "test:env": "node scripts/test-env.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -41,6 +44,7 @@
     "next": "15.3.2",
     "next-auth": "^5.0.0-beta.28",
     "next-themes": "^0.4.6",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-colorful": "^5.6.1",
     "react-dom": "^19.0.0",

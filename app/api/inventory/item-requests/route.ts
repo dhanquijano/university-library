@@ -1,35 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
-import { sql, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { itemRequests } from "@/database/schema";
-
-
+import { checkSessionAdminPermission } from "@/lib/session-auth";
+import { getBranchFilterForRole, getBranchNameFromId } from "@/lib/admin-utils";
 
 export async function GET(req: NextRequest) {
-
   try {
+    console.log("Item requests API called");
+    
+    // Check admin permission and get user info
+    const authResult = await checkSessionAdminPermission(req);
+    console.log("Auth result:", authResult);
+    
+    if (!authResult.authorized) {
+      console.log("Auth failed:", authResult.error);
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
+    console.log("User info:", {
+      role: authResult.user.role,
+      branch: authResult.user.branch,
+      name: authResult.user.name
+    });
+
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const branch = searchParams.get('branch');
 
+    // Build WHERE conditions dynamically
     let whereConditions = [];
-    let params: any[] = [];
-
+    
     if (status) {
-      whereConditions.push(`status = $${params.length + 1}`);
-      params.push(status);
+      whereConditions.push(`status = '${status}'`);
     }
 
     if (branch) {
-      whereConditions.push(`branch = $${params.length + 1}`);
-      params.push(branch);
+      whereConditions.push(`branch = '${branch}'`);
+    }
+
+    // Apply branch filtering for managers
+    const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+    console.log("Branch filter result:", branchFilter);
+    
+    if (branchFilter.shouldFilter && branchFilter.branchId) {
+      // For managers, we need to convert branch ID to branch name
+      const branchName = await getBranchNameFromId(branchFilter.branchId);
+      console.log(`Branch ID ${branchFilter.branchId} maps to branch name: ${branchName}`);
+      
+      if (branchName) {
+        whereConditions.push(`branch = '${branchName}'`);
+        console.log("Applied branch filter for manager:", branchName);
+      } else {
+        console.log("Branch name not found for ID:", branchFilter.branchId);
+        // If branch name not found, return empty results
+        return NextResponse.json([]);
+      }
+    } else {
+      console.log("No branch filtering - showing all requests (Admin access)");
     }
 
     const whereClause = whereConditions.length > 0 
       ? `WHERE ${whereConditions.join(' AND ')}`
       : '';
 
-    const query = sql.raw(`
+    const queryString = `
       SELECT 
         id,
         request_number as "requestNumber",
@@ -48,16 +86,18 @@ export async function GET(req: NextRequest) {
       FROM item_requests
       ${whereClause}
       ORDER BY requested_date DESC
-    `);
+    `;
 
-    const result = await db.execute(query);
+    console.log("Executing query:", queryString);
+    const result = await db.execute(sql.raw(queryString));
     const requests = (result as any).rows || [];
+    console.log("Query result:", requests.length, "requests found");
 
     return NextResponse.json(requests);
   } catch (error) {
     console.error("Error fetching item requests:", error);
     return NextResponse.json(
-      { error: "Failed to fetch item requests" },
+      { error: "Failed to fetch item requests", details: error.message },
       { status: 500 }
     );
   }
@@ -65,6 +105,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("POST item requests API called");
+    
+    // Check admin permission and get user info
+    const authResult = await checkSessionAdminPermission(req);
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
     const body = await req.json();
     console.log('Received request body:', body);
     const { items, totalAmount, notes, branch, requestedBy } = body;
@@ -91,6 +142,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Apply branch filtering for managers - they can only create requests for their branch
+    const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+    if (branchFilter.shouldFilter && branchFilter.branchId) {
+      const branchName = await getBranchNameFromId(branchFilter.branchId);
+      if (branchName && branch !== branchName) {
+        return NextResponse.json(
+          { error: `You can only create item requests for your assigned branch: ${branchName}` },
+          { status: 403 }
+        );
+      }
+    }
+
     // Generate unique request number
     const requestNumber = `REQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
@@ -100,7 +163,7 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       items: JSON.stringify(items),
       totalAmount: totalAmount.toString(),
-      requestedBy: requestedBy || 'Manager',
+      requestedBy: requestedBy || authResult.user.name || 'Manager',
       notes: notes || null,
       branch,
     }).returning({
@@ -116,15 +179,12 @@ export async function POST(req: NextRequest) {
     });
     
     console.log('Request created successfully:', newRequest);
-    console.log('Items type:', typeof newRequest.items);
-    console.log('Items value:', newRequest.items);
     
-    // The items should already be in the correct format from the database
     return NextResponse.json(newRequest, { status: 201 });
   } catch (error) {
     console.error("Error creating item request:", error);
     return NextResponse.json(
-      { error: "Failed to create item request" },
+      { error: "Failed to create item request", details: error.message },
       { status: 500 }
     );
   }

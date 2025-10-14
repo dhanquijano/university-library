@@ -12,11 +12,6 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-export const STATUS_ENUM = pgEnum("status", [
-  "PENDING",
-  "APPROVED",
-  "REJECTED",
-]);
 export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN", "MANAGER", "STAFF"]);
 export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
   "BORROWED",
@@ -28,7 +23,7 @@ export const users = pgTable("users", {
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
-  status: STATUS_ENUM("status").default("PENDING"),
+  branch: text("branch"), // Branch assignment for the user
   role: ROLE_ENUM("role").default("USER"),
   lastActivityDate: date("last_activity_date").defaultNow(),
   createdAt: timestamp("created-at", {

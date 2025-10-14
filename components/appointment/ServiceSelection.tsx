@@ -23,7 +23,11 @@ interface ServiceSelectionProps {
 const ServiceSelection = ({ 
   form, 
   appointmentData 
-}: ServiceSelectionProps) => (
+}: ServiceSelectionProps) => {
+  console.log("ServiceSelection - appointmentData:", appointmentData);
+  console.log("ServiceSelection - services:", appointmentData?.services);
+  
+  return (
   <div className="bg-white rounded-lg border p-6">
     <h2 className="text-xl font-semibold mb-4">Select Service</h2>
     <FormField
@@ -39,21 +43,27 @@ const ServiceSelection = ({
               </SelectTrigger>
             </FormControl>
             <SelectContent>
-              {appointmentData.services.map((service, index) => (
-                <SelectItem key={index} value={service.title}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {service.title}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {service.description}
-                    </span>
-                    <span className="text-sm font-medium text-green-600">
-                      ₱{service.price}
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
+              {appointmentData.services && appointmentData.services.length > 0 ? (
+                appointmentData.services.map((service, index) => (
+                  <SelectItem key={index} value={service.title}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {service.title}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {service.description}
+                      </span>
+                      <span className="text-sm font-medium text-green-600">
+                        ₱{service.price}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="p-2 text-sm text-gray-500">
+                  No services available
+                </div>
+              )}
             </SelectContent>
           </Select>
           <FormMessage />
@@ -61,6 +71,7 @@ const ServiceSelection = ({
       )}
     />
   </div>
-);
+  );
+};
 
 export default ServiceSelection;

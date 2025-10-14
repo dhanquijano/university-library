@@ -17,16 +17,39 @@ export async function GET(req: NextRequest) {
         console.log(`Found ${dbBarbers.length} barbers in database`);
         
         // Transform database barbers to expected format
-        barbersData = dbBarbers.map((barber: any) => ({
-          id: barber.id,
-          name: barber.name,
-          specialties: JSON.parse(barber.specialties),
-          experience: barber.experience,
-          rating: parseFloat(barber.rating),
-          image: barber.image,
-          branches: JSON.parse(barber.branches),
-          createdAt: barber.createdAt
-        }));
+        barbersData = dbBarbers.map((barber: any) => {
+          let specialties = [];
+          let branches = [];
+          
+          try {
+            specialties = typeof barber.specialties === 'string' 
+              ? JSON.parse(barber.specialties) 
+              : (Array.isArray(barber.specialties) ? barber.specialties : []);
+          } catch (e) {
+            console.warn(`Failed to parse specialties for barber ${barber.id}:`, barber.specialties);
+            specialties = [];
+          }
+          
+          try {
+            branches = typeof barber.branches === 'string' 
+              ? JSON.parse(barber.branches) 
+              : (Array.isArray(barber.branches) ? barber.branches : []);
+          } catch (e) {
+            console.warn(`Failed to parse branches for barber ${barber.id}:`, barber.branches);
+            branches = [];
+          }
+          
+          return {
+            id: barber.id,
+            name: barber.name,
+            specialties,
+            experience: barber.experience,
+            rating: parseFloat(barber.rating) || 0,
+            image: barber.image,
+            branches,
+            createdAt: barber.createdAt
+          };
+        });
       } else {
         throw new Error('No barbers found in database');
       }
@@ -64,14 +87,29 @@ export async function POST(req: NextRequest) {
     const [barber] = await db.insert(barbers).values(barberData).returning();
     
     // Transform back to expected format
+    let specialties = [];
+    let branches = [];
+    
+    try {
+      specialties = JSON.parse(barber.specialties);
+    } catch (e) {
+      specialties = [];
+    }
+    
+    try {
+      branches = JSON.parse(barber.branches);
+    } catch (e) {
+      branches = [];
+    }
+    
     const responseBarber = {
       id: barber.id,
       name: barber.name,
-      specialties: JSON.parse(barber.specialties),
+      specialties,
       experience: barber.experience,
-      rating: parseFloat(barber.rating),
+      rating: parseFloat(barber.rating) || 0,
       image: barber.image,
-      branches: JSON.parse(barber.branches),
+      branches,
       createdAt: barber.createdAt
     };
     

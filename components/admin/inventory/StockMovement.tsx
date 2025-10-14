@@ -39,6 +39,7 @@ import {
   Calendar,
   FileText
 } from "lucide-react";
+import { useAdminRole, useBranchMap } from "@/lib/admin-utils";
 
 interface StockTransaction {
   id: string;
@@ -74,6 +75,11 @@ const StockMovement = ({
   onBranchChange,
   onAddTransaction 
 }: StockMovementProps) => {
+  // Get user role and branch information
+  const { userRole, userBranch } = useAdminRole();
+  const { getBranchName } = useBranchMap();
+  const isManager = userRole === "MANAGER";
+  
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     itemId: '',
@@ -84,8 +90,10 @@ const StockMovement = ({
     reason: '',
   });
 
-  // Filter transactions based on selected branches
-  const filteredTransactions = selectedBranches.length > 0 
+  // Filter transactions based on selected branches and user role
+  // For managers, transactions are already filtered by their branch in the parent component
+  // For admins, apply additional branch filters if any are selected
+  const filteredTransactions = (!isManager && selectedBranches.length > 0)
     ? transactions.filter(transaction => 
         transaction.branch && selectedBranches.includes(transaction.branch)
       )
@@ -152,12 +160,25 @@ const StockMovement = ({
 
   return (
     <div className="space-y-6">
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
+
+      {/* Branch Display for managers */}
+      {isManager && userBranch && (
+        <div className="bg-muted p-4 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            <span className="font-medium">Viewing: {getBranchName(userBranch)}</span>
+            <Badge variant="secondary">Your Branch</Badge>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center">

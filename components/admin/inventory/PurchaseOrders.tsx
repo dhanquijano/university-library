@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import BranchFilter from "./BranchFilter";
+import { useAdminRole } from "@/lib/admin-utils";
 import {
   Select,
   SelectContent,
@@ -88,6 +89,8 @@ const PurchaseOrders = ({
   onCreateOrder, 
   onUpdateOrderStatus 
 }: PurchaseOrdersProps) => {
+  const { userRole } = useAdminRole();
+  const isManager = userRole === "MANAGER";
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newOrder, setNewOrder] = useState({
     supplier: '',
@@ -233,12 +236,14 @@ const PurchaseOrders = ({
 
   return (
     <div className="space-y-6">
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center">

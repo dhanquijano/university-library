@@ -27,7 +27,8 @@ import RequestOrders from "@/components/admin/inventory/RequestOrders";
 import AdminApproval from "@/components/admin/inventory/AdminApproval";
 import CostAnalytics from "@/components/admin/inventory/CostAnalytics";
 import InventorySettings from "@/components/admin/inventory/InventorySettings";
-import { useAdminRole } from "@/lib/admin-utils";
+import BranchManagerInfo from "@/components/admin/BranchManagerInfo";
+import { useAdminRole, useBranchMap } from "@/lib/admin-utils";
 
 // Mock data - in real app, this would come from API
 const mockInventoryStats = {
@@ -208,6 +209,7 @@ const mockUsers = ["Admin User", "Manager Sarah", "Barber John", "Barber Mike"];
 
 const InventoryPage = () => {
   const { user, isLoading } = useAdminRole();
+  const { getBranchName, branchMap } = useBranchMap();
   const userRole = user?.role;
   const isAdmin = userRole === "ADMIN";
   const isManager = userRole === "MANAGER";
@@ -774,25 +776,71 @@ const InventoryPage = () => {
     }));
 
   const handleBranchChange = (branches: string[]) => {
-    setSelectedBranches(branches);
+    // Only allow branch changes for non-managers
+    if (!stableIsManager) {
+      setSelectedBranches(branches);
+    }
   };
 
-  // Filter data based on selected branches
-  const getFilteredData = () => {
-    if (selectedBranches.length === 0) {
+  // Helper functions to provide appropriate props based on user role
+  const getBranchFilterProps = () => {
+    if (stableIsManager) {
+      // Managers don't need branch filters - they're auto-filtered
       return {
-        filteredItems: inventoryItems,
-        filteredTransactions: stockTransactions,
-        filteredOrders: purchaseOrders,
+        selectedBranches: [],
+        onBranchChange: () => {}, // No-op function
+      };
+    }
+    // Admins get full branch filtering functionality
+    return {
+      selectedBranches,
+      onBranchChange: handleBranchChange,
+    };
+  };
+
+  // Filter data based on selected branches and user role
+  const getFilteredData = () => {
+    let baseItems = inventoryItems;
+    let baseTransactions = stockTransactions;
+    let baseOrders = purchaseOrders;
+
+    // For managers, automatically filter by their branch
+    if (stableIsManager && user?.branch) {
+      // user.branch could be ID or name, so we need to handle both cases
+      const userBranchName = getBranchName(user.branch);
+      baseItems = inventoryItems.filter(item => 
+        item.branch === user.branch || getBranchName(item.branch) === userBranchName
+      );
+      baseTransactions = stockTransactions.filter(transaction => 
+        transaction.branch === user.branch || getBranchName(transaction.branch) === userBranchName
+      );
+      baseOrders = purchaseOrders.filter(order => 
+        order.branch === user.branch || getBranchName(order.branch) === userBranchName
+      );
+    }
+
+    // Apply additional branch filters if any are selected (for admins)
+    if (selectedBranches.length > 0 && !stableIsManager) {
+      return {
+        filteredItems: baseItems.filter(item => 
+          selectedBranches.includes(item.branch) || selectedBranches.includes(getBranchName(item.branch))
+        ),
+        filteredTransactions: baseTransactions.filter(transaction =>
+          transaction.branch && (
+            selectedBranches.includes(transaction.branch) || 
+            selectedBranches.includes(getBranchName(transaction.branch))
+          )
+        ),
+        filteredOrders: baseOrders.filter(order => 
+          selectedBranches.includes(order.branch) || selectedBranches.includes(getBranchName(order.branch))
+        ),
       };
     }
 
     return {
-      filteredItems: inventoryItems.filter(item => selectedBranches.includes(item.branch)),
-      filteredTransactions: stockTransactions.filter(transaction =>
-        transaction.branch && selectedBranches.includes(transaction.branch)
-      ),
-      filteredOrders: purchaseOrders.filter(order => selectedBranches.includes(order.branch)),
+      filteredItems: baseItems,
+      filteredTransactions: baseTransactions,
+      filteredOrders: baseOrders,
     };
   };
 
@@ -909,6 +957,8 @@ const InventoryPage = () => {
         <p className="text-gray-600">Manage your barbershop inventory, track stock movements, and handle purchase orders</p>
       </div>
 
+      <BranchManagerInfo />
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className={`grid w-full ${stableIsAdmin ? 'grid-cols-7' : 'grid-cols-6'}`}>
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
@@ -959,8 +1009,7 @@ const InventoryPage = () => {
             stats={realStats}
             recentActivity={realRecentActivity}
             branches={branches}
-            selectedBranches={selectedBranches}
-            onBranchChange={handleBranchChange}
+            {...getBranchFilterProps()}
           />
         </TabsContent>
 
@@ -970,8 +1019,7 @@ const InventoryPage = () => {
             categories={categories}
             suppliers={suppliers}
             branches={branches}
-            selectedBranches={selectedBranches}
-            onBranchChange={handleBranchChange}
+            {...getBranchFilterProps()}
             onAddItem={handleAddItem}
             onUpdateItem={handleUpdateItem}
             onDeleteItem={handleDeleteItem}
@@ -980,12 +1028,11 @@ const InventoryPage = () => {
 
         <TabsContent value="movement" className="space-y-6">
           <StockMovement
-            transactions={stockTransactions}
-            items={inventoryItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, branch: item.branch }))}
+            transactions={getFilteredData().filteredTransactions}
+            items={getFilteredData().filteredItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, branch: item.branch }))}
             users={mockUsers}
             branches={branches}
-            selectedBranches={selectedBranches}
-            onBranchChange={handleBranchChange}
+            {...getBranchFilterProps()}
             onAddTransaction={handleAddTransaction}
           />
         </TabsContent>
@@ -997,8 +1044,7 @@ const InventoryPage = () => {
               orders={purchaseOrders}
               suppliers={suppliers}
               branches={branches}
-              selectedBranches={selectedBranches}
-              onBranchChange={handleBranchChange}
+              {...getBranchFilterProps()}
               lowStockItems={lowStockItems}
               users={mockUsers}
               onCreateOrder={handleCreateOrder}
@@ -1016,9 +1062,18 @@ const InventoryPage = () => {
               requests={itemRequests}
               suppliers={suppliers}
               branches={branches}
-              selectedBranches={selectedBranches}
-              onBranchChange={handleBranchChange}
-              lowStockItems={lowStockItems}
+              {...getBranchFilterProps()}
+              lowStockItems={getFilteredData().filteredItems
+                .filter(item => item.quantity <= item.reorderThreshold)
+                .map(item => ({
+                  id: item.id,
+                  name: item.name,
+                  currentQuantity: item.quantity,
+                  reorderThreshold: item.reorderThreshold,
+                  supplier: item.supplier,
+                  branch: item.branch,
+                  unitPrice: parseFloat(item.unitPrice || '0'),
+                }))}
               onCreateRequest={handleCreateRequest}
             />
           </TabsContent>
@@ -1030,8 +1085,7 @@ const InventoryPage = () => {
             <AdminApproval
               requests={itemRequests}
               branches={branches}
-              selectedBranches={selectedBranches}
-              onBranchChange={handleBranchChange}
+              {...getBranchFilterProps()}
               onApproveRequest={handleApproveRequest}
               onRejectRequest={handleRejectRequest}
             />
@@ -1041,8 +1095,7 @@ const InventoryPage = () => {
         <TabsContent value="analytics" className="space-y-6">
           <CostAnalytics
             branches={branches}
-            selectedBranches={selectedBranches}
-            onBranchChange={handleBranchChange}
+            {...getBranchFilterProps()}
             inventoryItems={inventoryItems}
             stockTransactions={stockTransactions}
             purchaseOrders={purchaseOrders}

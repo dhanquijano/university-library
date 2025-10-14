@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
 import { sql, eq } from "drizzle-orm";
 import { inventoryItems, stockTransactions } from "@/database/schema";
+import { checkAdminPermission } from "@/lib/admin-auth";
+import { getBranchFilterForRole } from "@/lib/admin-utils";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Check admin permission and get user info
+    const authResult = await checkAdminPermission(req);
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { action, reviewedBy, notes, rejectionReason } = body;
@@ -40,6 +51,15 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Request not found" },
         { status: 404 }
+      );
+    }
+
+    // Apply branch filtering for managers - they can only approve/reject requests from their branch
+    const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+    if (branchFilter.shouldFilter && branchFilter.branchCondition && request.branch !== branchFilter.branchCondition) {
+      return NextResponse.json(
+        { error: "You can only review item requests from your assigned branch" },
+        { status: 403 }
       );
     }
 
@@ -303,6 +323,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Check admin permission and get user info
+    const authResult = await checkAdminPermission(req);
+    if (!authResult.authorized) {
+      return NextResponse.json(
+        { error: authResult.error },
+        { status: authResult.status }
+      );
+    }
+
     const { id } = await params;
 
     const query = sql`
@@ -332,6 +361,15 @@ export async function GET(
       return NextResponse.json(
         { error: "Request not found" },
         { status: 404 }
+      );
+    }
+
+    // Apply branch filtering for managers - they can only view requests from their branch
+    const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+    if (branchFilter.shouldFilter && branchFilter.branchCondition && request.branch !== branchFilter.branchCondition) {
+      return NextResponse.json(
+        { error: "You can only view item requests from your assigned branch" },
+        { status: 403 }
       );
     }
 

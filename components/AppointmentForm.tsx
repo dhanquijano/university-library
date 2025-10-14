@@ -69,8 +69,14 @@ const AppointmentForm = () => {
         const result = await response.json();
 
         if (result.success) {
+          console.log("Appointment data loaded:", result.data);
+          console.log("Services count:", result.data.services?.length || 0);
+          if (result.data.services?.length > 0) {
+            console.log("First service:", result.data.services[0]);
+          }
           setAppointmentData(result.data);
         } else {
+          console.error("Failed to load appointment data:", result.error);
           toast.error("Failed to load appointment data");
         }
       } catch (error) {
@@ -322,7 +328,7 @@ const AppointmentForm = () => {
             />
           )}
 
-          {selectedBarber && (
+          {selectedBarber && appointmentData && (
             <ServiceSelection 
               form={form} 
               appointmentData={appointmentData} 

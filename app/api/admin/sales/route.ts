@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
 import { sql } from "drizzle-orm";
+import { checkAdminPermission } from "@/lib/admin-auth";
+import { getBranchFilterForRole } from "@/lib/admin-utils";
 
 // Ensure table exists (serverless-friendly)
 async function ensureSalesTable() {
@@ -47,6 +49,15 @@ async function ensureSalesTable() {
 type PaymentMethod = "Cash" | "GCash" | "Maya" | "Bank Transfer" | "Card" | "Unknown";
 
 export async function GET(req: NextRequest) {
+  // Check admin permission and get user info
+  const authResult = await checkAdminPermission(req);
+  if (!authResult.authorized) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
   await ensureSalesTable();
   const { searchParams } = new URL(req.url);
   const start = searchParams.get("start");
@@ -59,6 +70,12 @@ export async function GET(req: NextRequest) {
   }
   if (branch) {
     clauses.push(sql`branch = ${branch}`);
+  }
+
+  // Apply branch filtering for managers
+  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  if (branchFilter.shouldFilter && branchFilter.branchCondition) {
+    clauses.push(sql`branch = ${branchFilter.branchCondition}`);
   }
 
   const whereSql = clauses.length ? sql`WHERE ${sql.join(clauses, sql` AND `)}` : sql``;
@@ -76,6 +93,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Check admin permission and get user info
+  const authResult = await checkAdminPermission(req);
+  if (!authResult.authorized) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
   await ensureSalesTable();
   const body = await req.json();
   console.log("Sales API received body:", body);
@@ -96,6 +122,15 @@ export async function POST(req: NextRequest) {
 
   if (!date || !branch) {
     return new NextResponse("Missing required fields", { status: 400 });
+  }
+
+  // Apply branch filtering for managers - they can only create sales for their branch
+  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  if (branchFilter.shouldFilter && branchFilter.branchCondition && branch !== branchFilter.branchCondition) {
+    return NextResponse.json(
+      { error: "You can only create sales records for your assigned branch" },
+      { status: 403 }
+    );
   }
 
   const insert = sql`
@@ -122,10 +157,40 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Check admin permission and get user info
+  const authResult = await checkAdminPermission(req);
+  if (!authResult.authorized) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
   await ensureSalesTable();
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return new NextResponse("Missing id", { status: 400 });
+
+  // Apply branch filtering for managers - they can only delete sales from their branch
+  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  if (branchFilter.shouldFilter && branchFilter.branchCondition) {
+    // First check if the record belongs to their branch
+    const checkQuery = sql`SELECT branch FROM sales WHERE id = ${id}`;
+    const checkResult = await db.execute(checkQuery);
+    const record = (checkResult as any).rows?.[0];
+    
+    if (!record) {
+      return new NextResponse("Record not found", { status: 404 });
+    }
+    
+    if (record.branch !== branchFilter.branchCondition) {
+      return NextResponse.json(
+        { error: "You can only delete sales records from your assigned branch" },
+        { status: 403 }
+      );
+    }
+  }
+
   await db.execute(sql`DELETE FROM sales WHERE id = ${id}`);
   return new NextResponse(null, { status: 204 });
 }

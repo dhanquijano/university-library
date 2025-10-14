@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import BranchFilter from "./BranchFilter";
+import { useAdminRole } from "@/lib/admin-utils";
 import {
   Package,
   AlertTriangle,
@@ -49,6 +50,8 @@ const InventoryDashboard = ({
   selectedBranches,
   onBranchChange
 }: InventoryDashboardProps) => {
+  const { userRole } = useAdminRole();
+  const isManager = userRole === "MANAGER";
   const getActionColor = (type: string) => {
     switch (type) {
       case 'in': return 'bg-green-100 text-green-800';
@@ -71,12 +74,14 @@ const InventoryDashboard = ({
 
   return (
     <div className="space-y-6">
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

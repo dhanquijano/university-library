@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Package, Clock, CheckCircle, XCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 import BranchFilter from "./BranchFilter";
+import { useAdminRole, useBranchMap } from "@/lib/admin-utils";
 
 interface RequestItem {
   itemId: string;
@@ -86,6 +87,11 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
   lowStockItems,
   onCreateRequest,
 }) => {
+  // Get user role and branch information
+  const { userRole, userBranch } = useAdminRole();
+  const { getBranchName } = useBranchMap();
+  const isManager = userRole === "MANAGER";
+  
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ItemRequest | null>(
@@ -94,6 +100,15 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
   const [selectedItems, setSelectedItems] = useState<RequestItem[]>([]);
   const [requestNotes, setRequestNotes] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
+
+  // Auto-select branch for managers
+  useEffect(() => {
+    if (isManager && userBranch) {
+      // Use the branch name instead of ID for consistency
+      const branchName = getBranchName(userBranch);
+      setSelectedBranch(branchName);
+    }
+  }, [isManager, userBranch, getBranchName]);
 
   // Filter requests based on selected branches
   const filteredRequests =
@@ -250,39 +265,51 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
             </DialogHeader>
 
             <div className="space-y-6">
-              {/* Branch Selection */}
-              <div className="space-y-2 text-white">
-                <Label htmlFor="branch">Branch *</Label>
-                <Select
-                  value={selectedBranch}
-                  onValueChange={(value) => {
-                    setSelectedBranch(value);
-                    // Clear selected items when branch changes to prevent mixing items from different branches
-                    if (selectedItems.length > 0) {
-                      setSelectedItems([]);
-                      toast.info(
-                        "Selected items cleared - items from different branches cannot be mixed in one request",
-                      );
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch} value={branch}>
-                        {branch}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!selectedBranch && (
-                  <p className="text-sm text-muted-foreground">
-                    Select a branch to view available items for that location
-                  </p>
-                )}
-              </div>
+              {/* Branch Selection - Hidden for managers */}
+              {!isManager && (
+                <div className="space-y-2 text-white">
+                  <Label htmlFor="branch">Branch *</Label>
+                  <Select
+                    value={selectedBranch}
+                    onValueChange={(value) => {
+                      setSelectedBranch(value);
+                      // Clear selected items when branch changes to prevent mixing items from different branches
+                      if (selectedItems.length > 0) {
+                        setSelectedItems([]);
+                        toast.info(
+                          "Selected items cleared - items from different branches cannot be mixed in one request",
+                        );
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch} value={branch}>
+                          {branch}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!selectedBranch && (
+                    <p className="text-sm text-muted-foreground">
+                      Select a branch to view available items for that location
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Branch Display for managers */}
+              {isManager && selectedBranch && (
+                <div className="space-y-2 text-white">
+                  <Label>Branch</Label>
+                  <div className="p-3 bg-muted rounded-lg text-muted-foreground">
+                    {getBranchName(selectedBranch)} (Your assigned branch)
+                  </div>
+                </div>
+              )}
 
               {/* Low Stock Items */}
               <div className="space-y-4">
@@ -466,12 +493,14 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
         </Dialog>
       </div>
 
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
 
       {/* Requests Table */}
       <Card>
@@ -517,7 +546,7 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
                     </div>
                   </TableCell>
                   <TableCell>₱{request.totalAmount.toLocaleString()}</TableCell>
-                  <TableCell>{request.branch}</TableCell>
+                  <TableCell>{getBranchName(request.branch)}</TableCell>
                   <TableCell>
                     {new Date(request.requestedDate).toLocaleDateString()}
                   </TableCell>
@@ -567,7 +596,7 @@ const RequestOrders: React.FC<RequestOrdersProps> = ({
                 </div>
                 <div className="space-y-2">
                   <Label>Branch</Label>
-                  <div>{selectedRequest.branch}</div>
+                  <div>{getBranchName(selectedRequest.branch)}</div>
                 </div>
                 <div className="space-y-2">
                   <Label>Requested By</Label>

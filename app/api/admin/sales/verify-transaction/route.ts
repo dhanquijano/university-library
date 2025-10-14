@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/database/drizzle";
 import { sql } from "drizzle-orm";
-import { checkAdminPermission, createUnauthorizedResponse } from "@/lib/admin-auth";
+import { checkAdminOnlyPermission, createUnauthorizedResponse } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
-  // Check admin permissions
-  const authCheck = await checkAdminPermission(req);
+  // Check admin-only permissions
+  const authCheck = await checkAdminOnlyPermission(req);
   if (!authCheck.authorized) {
     return createUnauthorizedResponse(authCheck.error!, authCheck.status!);
   }

@@ -112,7 +112,7 @@ const BarberSelection = ({
           {barber.experience} experience
         </span>
         <div className="flex flex-wrap gap-1 mt-1 justify-center">
-          {barber.specialties.map((specialty: string) => (
+          {(Array.isArray(barber.specialties) ? barber.specialties : []).map((specialty: string) => (
             <Badge
               key={specialty}
               variant="secondary"

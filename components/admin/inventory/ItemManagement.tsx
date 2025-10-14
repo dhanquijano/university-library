@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import BranchFilter from "./BranchFilter";
+import { useBranchMap, useAdminRole } from "@/lib/admin-utils";
 import {
   Select,
   SelectContent,
@@ -76,6 +77,9 @@ const ItemManagement = ({
   onUpdateItem,
   onDeleteItem
 }: ItemManagementProps) => {
+  const { getBranchName } = useBranchMap();
+  const { userRole } = useAdminRole();
+  const isManager = userRole === "MANAGER";
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   
@@ -183,12 +187,14 @@ const ItemManagement = ({
 
   return (
     <div className="space-y-6">
-      {/* Branch Filter */}
-      <BranchFilter
-        branches={branches}
-        selectedBranches={selectedBranches}
-        onBranchChange={onBranchChange}
-      />
+      {/* Branch Filter - Hidden for managers */}
+      {!isManager && (
+        <BranchFilter
+          branches={branches}
+          selectedBranches={selectedBranches}
+          onBranchChange={onBranchChange}
+        />
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -383,7 +389,7 @@ const ItemManagement = ({
                     </div>
                   </TableCell>
                   <TableCell>{item.supplier}</TableCell>
-                  <TableCell>{item.branch}</TableCell>
+                  <TableCell>{getBranchName(item.branch)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button

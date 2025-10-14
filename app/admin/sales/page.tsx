@@ -37,24 +37,25 @@ import {
 } from "lucide-react";
 import VerificationTab from "@/components/VerificationTab";
 import SalesAnalyticsDashboard from "@/components/admin/sales/SalesAnalyticsDashboard";
-import { useAdminRole } from "@/lib/admin-utils";
+import BranchManagerInfo from "@/components/admin/BranchManagerInfo";
+import { useAdminRole, useAdminOnlyRole } from "@/lib/admin-utils";
 import { useSession } from "next-auth/react";
 
 // Wrapper component to prevent VerificationTab from unmounting
 const VerificationTabWrapper = ({
-  isAdmin,
-  adminLoading,
+  isAdminOnly,
+  adminOnlyLoading,
   onRefreshSalesData
 }: {
-  isAdmin: boolean;
-  adminLoading: boolean;
+  isAdminOnly: boolean;
+  adminOnlyLoading: boolean;
   onRefreshSalesData?: () => void;
 }) => {
-  if (isAdmin) {
+  if (isAdminOnly) {
     return <VerificationTab key="verification-component" onRefreshSalesData={onRefreshSalesData} />;
   }
 
-  if (adminLoading) {
+  if (adminOnlyLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
@@ -70,7 +71,7 @@ const VerificationTabWrapper = ({
       <div className="text-center">
         <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Access Restricted</h3>
-        <p className="text-gray-600">You need admin privileges to access the verification panel.</p>
+        <p className="text-gray-600">Only users with ADMIN role can access the verification panel.</p>
       </div>
     </div>
   );
@@ -140,8 +141,12 @@ const SalesManagementPage = () => {
   // Admin role checking with stable state
   const { isAdmin, isLoading: adminLoading } = useAdminRole();
   
+  // Admin-only role checking for verification tab
+  const { isAdminOnly, isLoading: adminOnlyLoading } = useAdminOnlyRole();
+  
   // Stable admin state to prevent UI flickering during session refresh
   const [stableIsAdmin, setStableIsAdmin] = useState(false);
+  const [stableIsAdminOnly, setStableIsAdminOnly] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Update stable admin status only when we have a definitive role (not during loading)
@@ -153,8 +158,17 @@ const SalesManagementPage = () => {
     }
   }, [isAdmin, adminLoading]);
 
+  // Update stable admin-only status
+  useEffect(() => {
+    if (!adminOnlyLoading && isAdminOnly !== undefined) {
+      setStableIsAdminOnly(isAdminOnly);
+      console.log("Stable admin-only status updated:", isAdminOnly);
+    }
+  }, [isAdminOnly, adminOnlyLoading]);
+
   // Use stable admin status
   const effectiveIsAdmin = hasInitialized ? stableIsAdmin : isAdmin;
+  const effectiveIsAdminOnly = hasInitialized ? stableIsAdminOnly : isAdminOnly;
 
   // Debug logging
   useEffect(() => {
@@ -163,9 +177,13 @@ const SalesManagementPage = () => {
       adminLoading, 
       stableIsAdmin, 
       effectiveIsAdmin, 
-      hasInitialized 
+      hasInitialized,
+      isAdminOnly,
+      adminOnlyLoading,
+      stableIsAdminOnly,
+      effectiveIsAdminOnly
     });
-  }, [isAdmin, adminLoading, stableIsAdmin, effectiveIsAdmin, hasInitialized]);
+  }, [isAdmin, adminLoading, stableIsAdmin, effectiveIsAdmin, hasInitialized, isAdminOnly, adminOnlyLoading, stableIsAdminOnly, effectiveIsAdminOnly]);
 
   // Session for user data
   const { data: session } = useSession();
@@ -857,6 +875,8 @@ const SalesManagementPage = () => {
         </Button>
       </div>
 
+      <BranchManagerInfo />
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -1505,8 +1525,8 @@ const SalesManagementPage = () => {
         <TabsContent value="verification">
           <VerificationTabWrapper
             key="verification-tab"
-            isAdmin={effectiveIsAdmin}
-            adminLoading={adminLoading}
+            isAdminOnly={effectiveIsAdminOnly}
+            adminOnlyLoading={adminOnlyLoading}
             onRefreshSalesData={() => loadManual(true)}
           />
         </TabsContent>
