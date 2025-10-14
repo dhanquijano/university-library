@@ -286,7 +286,7 @@ const InventorySettings = ({
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader>
+                  <DialogHeader className="text-white">
                     <DialogTitle>Add New Category</DialogTitle>
                     <DialogDescription>
                       Add a new inventory category for organizing items.
@@ -294,7 +294,7 @@ const InventorySettings = ({
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="categoryName">Category Name</Label>
+                      <Label htmlFor="categoryName" className="text-white h-5">Category Name</Label>
                       <Input
                         id="categoryName"
                         value={newCategory}
@@ -347,15 +347,15 @@ const InventorySettings = ({
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader>
+                  <DialogHeader className="max-w-md text-white">
                     <DialogTitle>Add New Supplier</DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription >
                       Add a new supplier for inventory management.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="supplierName">Supplier Name</Label>
+                      <Label htmlFor="supplierName" className="text-white h-4">Supplier Name</Label>
                       <Input
                         id="supplierName"
                         value={newSupplier.name}
@@ -364,7 +364,7 @@ const InventorySettings = ({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="supplierContact">Contact Person</Label>
+                      <Label htmlFor="supplierContact" className="text-white h-4">Contact Person</Label>
                       <Input
                         id="supplierContact"
                         value={newSupplier.contact}
@@ -373,7 +373,7 @@ const InventorySettings = ({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="supplierEmail">Email</Label>
+                      <Label htmlFor="supplierEmail" className="text-white h-4">Email</Label>
                       <Input
                         id="supplierEmail"
                         type="email"
@@ -383,7 +383,7 @@ const InventorySettings = ({
                       />
                     </div>
                     <div>
-                      <Label htmlFor="supplierPhone">Phone</Label>
+                      <Label htmlFor="supplierPhone" className="text-white h-4">Phone</Label>
                       <Input
                         id="supplierPhone"
                         value={newSupplier.phone}

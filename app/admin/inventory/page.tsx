@@ -273,6 +273,8 @@ const InventoryPage = () => {
     fetchPurchaseOrders();
     fetchItemRequests();
     fetchBranches();
+    fetchCategories();
+    fetchSuppliers();
   }, []);
 
   const fetchInventoryItems = async () => {
@@ -421,6 +423,48 @@ const InventoryPage = () => {
       console.error('Error fetching branches:', error);
       // Fallback to mock branches if API fails
       setBranches(mockBranches);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/inventory/categories');
+      if (response.ok) {
+        const data = await response.json();
+        // Extract category names from the API response
+        const categoryNames = data.map((category: any) => category.name);
+        setCategories(categoryNames);
+        console.log(`Loaded ${categoryNames.length} categories from database`);
+      } else {
+        console.error('Failed to fetch categories');
+        // Fallback to mock categories if API fails
+        setCategories(mockCategories);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Fallback to mock categories if API fails
+      setCategories(mockCategories);
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await fetch('/api/inventory/suppliers');
+      if (response.ok) {
+        const data = await response.json();
+        // Extract supplier names from the API response
+        const supplierNames = data.map((supplier: any) => supplier.name);
+        setSuppliers(supplierNames);
+        console.log(`Loaded ${supplierNames.length} suppliers from database`);
+      } else {
+        console.error('Failed to fetch suppliers');
+        // Fallback to mock suppliers if API fails
+        setSuppliers(mockSuppliers);
+      }
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      // Fallback to mock suppliers if API fails
+      setSuppliers(mockSuppliers);
     }
   };
 
@@ -648,12 +692,96 @@ const InventoryPage = () => {
   };
 
   // Settings handlers
-  const handleUpdateCategories = (newCategories: string[]) => {
+  const handleUpdateCategories = async (newCategories: string[]) => {
     setCategories(newCategories);
+    
+    // Find the difference to determine if we're adding or removing
+    const added = newCategories.filter(cat => !categories.includes(cat));
+    const removed = categories.filter(cat => !newCategories.includes(cat));
+    
+    try {
+      // Handle additions
+      for (const categoryName of added) {
+        const response = await fetch('/api/inventory/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: categoryName }),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to add category:', categoryName);
+          toast.error(`Failed to add category: ${categoryName}`);
+        }
+      }
+      
+      // Handle removals
+      for (const categoryName of removed) {
+        const response = await fetch(`/api/inventory/categories?name=${encodeURIComponent(categoryName)}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to remove category:', categoryName);
+          toast.error(`Failed to remove category: ${categoryName}`);
+        }
+      }
+      
+      if (added.length > 0 || removed.length > 0) {
+        const messages = [];
+        if (added.length > 0) messages.push(`Added ${added.length} category(ies)`);
+        if (removed.length > 0) messages.push(`Removed ${removed.length} category(ies)`);
+        toast.success(messages.join(', '));
+      }
+    } catch (error) {
+      console.error('Error updating categories:', error);
+      toast.error('Error updating categories');
+    }
   };
 
-  const handleUpdateSuppliers = (newSuppliers: string[]) => {
+  const handleUpdateSuppliers = async (newSuppliers: string[]) => {
     setSuppliers(newSuppliers);
+    
+    // Find the difference to determine if we're adding or removing
+    const added = newSuppliers.filter(sup => !suppliers.includes(sup));
+    const removed = suppliers.filter(sup => !newSuppliers.includes(sup));
+    
+    try {
+      // Handle additions
+      for (const supplierName of added) {
+        const response = await fetch('/api/inventory/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: supplierName }),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to add supplier:', supplierName);
+          toast.error(`Failed to add supplier: ${supplierName}`);
+        }
+      }
+      
+      // Handle removals
+      for (const supplierName of removed) {
+        const response = await fetch(`/api/inventory/suppliers?name=${encodeURIComponent(supplierName)}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to remove supplier:', supplierName);
+          toast.error(`Failed to remove supplier: ${supplierName}`);
+        }
+      }
+      
+      if (added.length > 0 || removed.length > 0) {
+        const messages = [];
+        if (added.length > 0) messages.push(`Added ${added.length} supplier(s)`);
+        if (removed.length > 0) messages.push(`Removed ${removed.length} supplier(s)`);
+        toast.success(messages.join(', '));
+      }
+    } catch (error) {
+      console.error('Error updating suppliers:', error);
+      toast.error('Error updating suppliers');
+    }
   };
 
   const handleCreateRequest = async (request: any) => {
