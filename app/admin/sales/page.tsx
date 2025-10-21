@@ -190,9 +190,9 @@ const SalesManagementPage = () => {
 
   const [rangeType, setRangeType] = useState<
     "daily" | "weekly" | "monthly" | "custom"
-  >("daily");
+  >("custom");
   const [startDate, setStartDate] = useState<string>(
-    dayjs().format("YYYY-MM-DD"),
+    dayjs().subtract(7, 'days').format("YYYY-MM-DD"),
   );
   const [endDate, setEndDate] = useState<string>(dayjs().format("YYYY-MM-DD"));
   const [branchFilter, setBranchFilter] = useState<string>("");
