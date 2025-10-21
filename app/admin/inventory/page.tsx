@@ -241,7 +241,7 @@ const InventoryPage = () => {
 
   // Monitor role changes
   useEffect(() => {
-    console.log("Role changed - User:", user?.fullName || user?.email, "Role:", userRole);
+    console.log("Role changed - User:", user?.name || user?.email, "Role:", userRole);
   }, [userRole, user]);
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -596,8 +596,8 @@ const InventoryPage = () => {
         },
         body: JSON.stringify({
           ...transaction,
-          userId: 'admin-user-id', // TODO: Get from session
-          branch: 'Main Branch', // TODO: Get from user context
+          userId: user?.id || 'unknown-user',
+          branch: user?.branch || 'Unknown Branch',
         }),
       });
 
@@ -627,7 +627,7 @@ const InventoryPage = () => {
         },
         body: JSON.stringify({
           ...order,
-          requestedBy: 'admin-user-id', // TODO: Get from session
+          // requestedBy is already set by the component with the logged-in user
           branch: order.branch, // Use the branch selected by the user
         }),
       });
@@ -1215,7 +1215,6 @@ const InventoryPage = () => {
           <StockMovement
             transactions={getFilteredData().filteredTransactions}
             items={getFilteredData().filteredItems.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, branch: item.branch }))}
-            users={mockUsers}
             branches={branches}
             {...getBranchFilterProps()}
             onAddTransaction={handleAddTransaction}
@@ -1231,7 +1230,6 @@ const InventoryPage = () => {
               branches={branches}
               {...getBranchFilterProps()}
               lowStockItems={lowStockItems}
-              users={mockUsers}
               onCreateOrder={handleCreateOrder}
               onUpdateOrderStatus={async (orderId: string, status: any) => {
                 await handleUpdateOrderStatus(orderId, status);

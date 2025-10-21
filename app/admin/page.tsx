@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import Link from "next/link";
 import dayjs from "dayjs";
+import { useAdminRole } from "@/lib/admin-utils";
 import {
   Calendar,
   Clock,
@@ -67,6 +68,9 @@ interface RecentActivity {
 }
 
 const AdminDashboard = () => {
+  const { userRole } = useAdminRole();
+  const isStaff = userRole === "STAFF";
+  
   const [stats, setStats] = useState<DashboardStats>({
     appointments: { total: 0, today: 0, pending: 0, completed: 0 },
     sales: { total: 0, today: 0, thisWeek: 0, thisMonth: 0 },
@@ -109,11 +113,12 @@ const AdminDashboard = () => {
       const thisMonth = dayjs().startOf('month').format('YYYY-MM-DD');
 
       // Appointment stats
+      const todaysAppointments = appointmentsRes.filter((a: any) => a.appointmentDate === today);
       const appointmentStats = {
         total: appointmentsRes.length || 0,
-        today: appointmentsRes.filter((a: any) => a.appointmentDate === today).length || 0,
+        today: todaysAppointments.length || 0,
         pending: appointmentsRes.filter((a: any) => new Date(`${a.appointmentDate}T${a.appointmentTime}`) > new Date()).length || 0,
-        completed: appointmentsRes.filter((a: any) => new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()).length || 0
+        completed: todaysAppointments.filter((a: any) => new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()).length || 0
       };
 
       // Sales stats (using actual sales data)
@@ -233,6 +238,171 @@ const AdminDashboard = () => {
     );
   }
 
+  // If user is STAFF, show only appointments dashboard
+  if (isStaff) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Appointments Dashboard</h1>
+            <p className="text-gray-600 mt-2">Manage your appointments and schedule.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={fetchDashboardData}>
+              <Activity className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Appointments Metrics Only */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.appointments.today}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.appointments.pending} pending, {stats.appointments.completed} completed
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.appointments.total}</div>
+              <p className="text-xs text-muted-foreground">
+                All time appointments
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Appointments</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.appointments.pending}</div>
+              <p className="text-xs text-muted-foreground">
+                Upcoming appointments
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.appointments.completed}</div>
+              <p className="text-xs text-muted-foreground">
+                Finished appointments
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Today's Appointments Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Today's Appointments
+              </span>
+              <Link href="/admin/appointments">
+                <Button variant="outline" size="sm">
+                  <Eye className="h-4 w-4 mr-2" />
+                  View All
+                </Button>
+              </Link>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Services</TableHead>
+                  <TableHead>Barber</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {appointments
+                  .filter((a) => a.appointmentDate === dayjs().format('YYYY-MM-DD'))
+                  .sort((a, b) => a.appointmentTime.localeCompare(b.appointmentTime))
+                  .map((appointment) => (
+                    <TableRow key={appointment.id}>
+                      <TableCell>{appointment.appointmentTime}</TableCell>
+                      <TableCell>{appointment.fullName}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{appointment.services}</TableCell>
+                      <TableCell>{appointment.barber || 'No Preference'}</TableCell>
+                      <TableCell>
+                        {getStatusBadge(
+                          new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`) > new Date() 
+                            ? 'pending' 
+                            : 'completed'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+            {appointments.filter((a) => a.appointmentDate === dayjs().format('YYYY-MM-DD')).length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No appointments scheduled for today.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Appointments Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Recent Appointments
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentActivity
+                .filter(activity => activity.type === 'appointment')
+                .slice(0, 10)
+                .map((activity) => (
+                  <div key={activity.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                    <div className="flex-shrink-0">
+                      <Calendar className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{activity.action}</p>
+                      <p className="text-xs text-muted-foreground truncate">{activity.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {dayjs(activity.timestamp).format('MMM DD, HH:mm')} • {activity.user}
+                      </p>
+                    </div>
+                    {activity.status && getStatusBadge(activity.status)}
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Full dashboard for ADMIN and MANAGER users
   return (
     <div className="space-y-6">
       {/* Header */}

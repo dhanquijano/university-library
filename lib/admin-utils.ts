@@ -95,26 +95,27 @@ export function getAdminNavItems(role: string) {
       route: "/admin",
       text: "Home",
     },
-    {
-      img: "/icons/admin/book.svg",
-      route: "/admin/appointments",
-      text: "All Appointments",
-    },
-    {
-      img: "/icons/admin/bookmark.svg",
-      route: "/admin/inventory",
-      text: "Inventory Management",
-    },
-    {
-      img: "/icons/admin/receipt.svg",
-      route: "/admin/sales",
-      text: "Sales Management",
-    },
-    {
-      img: "/icons/admin/calendar.svg",
-      route: "/admin/scheduling",
-      text: "Staff Scheduling",
-    },
+    
+  {
+    img: "/icons/admin/appointment.png",
+    route: "/admin/appointments",
+    text: "All Appointments",
+  },
+  {
+    img: "/icons/admin/inventory.png",
+    route: "/admin/inventory",
+    text: "Inventory Management",
+  },
+  {
+    img: "/icons/admin/sales.png",
+    route: "/admin/sales",
+    text: "Sales Management",
+  },
+  {
+    img: "/icons/admin/staffschedule.png",
+    route: "/admin/scheduling",
+    text: "Staff Scheduling",
+  },
   ];
 
   // For now, all admin roles get the same navigation items

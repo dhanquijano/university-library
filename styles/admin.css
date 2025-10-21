@@ -39,31 +39,14 @@
     @apply w-full! min-h-14! rounded-xl! font-bold! text-base! text-light-800!;
 }
 
-@utility book-form_input {
-    /* Book Form */
-    @apply min-h-14 border! border-gray-100! bg-light-600! p-4! text-base! font-semibold! placeholder:font-normal! placeholder:text-slate-500!;
-}
 
-@utility book-form_btn {
-    @apply min-h-14! w-full! bg-primary-admin! hover:bg-primary-admin/95! cursor-pointer!;
-}
 
 @utility view-btn {
     /* Home Page */
     @apply bg-light-300! rounded-md! text-primary-admin! font-semibold! hover:bg-light-300/80! shadow-none!;
 }
 
-@utility add-new-book_btn {
-    @apply mt-7 mb-3 bg-light-300 py-4 px-3 flex flex-row items-center rounded-xl gap-4;
 
-    & div:first-child {
-        @apply size-12 bg-white rounded-full flex justify-center items-center;
-    }
-
-    & p:first-child {
-        @apply font-semibold text-lg text-dark-400;
-    }
-}
 
 @utility stat {
     /* Statistics */
@@ -82,112 +65,17 @@
     @apply font-semibold text-3xl text-dark-400;
 }
 
-@utility book-stripe {
-    /* Book Stripe */
-    @apply flex flex-row gap-4 bg-light-300 p-4 rounded-lg;
 
-    & .title {
-        @apply font-semibold text-base text-dark-400 line-clamp-1;
-    }
 
-    & .author {
-        @apply flex flex-wrap flex-row items-center gap-2;
-    }
 
-    & .author p:first-child {
-        @apply text-light-500 text-sm line-clamp-1;
-    }
-
-    & .author div {
-        @apply size-1 rounded-full bg-light-500;
-    }
-
-    & .author p:last-child {
-        @apply text-light-500 text-sm;
-    }
-
-    & .user {
-        @apply mt-2.5 flex flex-row flex-wrap gap-5;
-    }
-
-    & .user .avatar {
-        @apply flex flex-row items-center gap-1.5;
-    }
-
-    & .user .avatar p {
-        @apply text-xs text-dark-200;
-    }
-
-    & .borrow-date {
-        @apply flex flex-row items-center gap-1.5;
-    }
-
-    & .borrow-date p {
-        @apply text-xs text-dark-200;
-    }
-}
-
-@utility title {
-    .book-stripe & {
-        @apply font-semibold text-base text-dark-400 line-clamp-1;
-    }
-}
-
-@utility author {
-    .book-stripe & {
-        @apply flex flex-wrap flex-row items-center gap-2;
-    }
-
-    .book-stripe & p:first-child {
-        @apply text-light-500 text-sm line-clamp-1;
-    }
-
-    .book-stripe & div {
-        @apply size-1 rounded-full bg-light-500;
-    }
-
-    .book-stripe & p:last-child {
-        @apply text-light-500 text-sm;
-    }
-}
 
 @utility user {
-    .book-stripe & {
-        @apply mt-2.5 flex flex-row flex-wrap gap-5;
-    }
-
-    .book-stripe & .avatar {
-        @apply flex flex-row items-center gap-1.5;
-    }
-
-    .book-stripe & .avatar p {
-        @apply text-xs text-dark-200;
-    }
-
     .admin-sidebar & {
         @apply my-8 flex w-full flex-row gap-2 rounded-full border border-light-400 px-6 py-2 shadow-xs max-md:px-2;
     }
 }
 
-@utility avatar {
-    .book-stripe .user & {
-        @apply flex flex-row items-center gap-1.5;
-    }
 
-    .book-stripe .user & p {
-        @apply text-xs text-dark-200;
-    }
-}
-
-@utility borrow-date {
-    .book-stripe & {
-        @apply flex flex-row items-center gap-1.5;
-    }
-
-    .book-stripe & p {
-        @apply text-xs text-dark-200;
-    }
-}
 
 @utility color-picker {
     /* Color Picker */

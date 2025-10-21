@@ -30,9 +30,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Plus, 
-  ArrowUpRight, 
+import {
+  Plus,
+  ArrowUpRight,
   ArrowDownLeft,
   Package,
   User,
@@ -59,33 +59,30 @@ interface StockTransaction {
 interface StockMovementProps {
   transactions: StockTransaction[];
   items: Array<{ id: string; name: string; quantity: number; branch?: string }>;
-  users: string[];
   branches: string[];
   selectedBranches: string[];
   onBranchChange: (branches: string[]) => void;
   onAddTransaction: (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => void;
 }
 
-const StockMovement = ({ 
-  transactions, 
-  items, 
-  users, 
+const StockMovement = ({
+  transactions,
+  items,
   branches,
   selectedBranches,
   onBranchChange,
-  onAddTransaction 
+  onAddTransaction
 }: StockMovementProps) => {
-  // Get user role and branch information
-  const { userRole, userBranch } = useAdminRole();
+  // Get user role, branch information, and user details
+  const { user, userRole, userBranch } = useAdminRole();
   const { getBranchName } = useBranchMap();
   const isManager = userRole === "MANAGER";
-  
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     itemId: '',
     type: 'in' as 'in' | 'out',
     quantity: 0,
-    user: '',
     notes: '',
     reason: '',
   });
@@ -94,9 +91,9 @@ const StockMovement = ({
   // For managers, transactions are already filtered by their branch in the parent component
   // For admins, apply additional branch filters if any are selected
   const filteredTransactions = (!isManager && selectedBranches.length > 0)
-    ? transactions.filter(transaction => 
-        transaction.branch && selectedBranches.includes(transaction.branch)
-      )
+    ? transactions.filter(transaction =>
+      transaction.branch && selectedBranches.includes(transaction.branch)
+    )
     : transactions;
 
   const getTransactionIcon = (type: string) => {
@@ -119,16 +116,19 @@ const StockMovement = ({
     const selectedItem = items.find(item => item.id === newTransaction.itemId);
     if (!selectedItem) return;
 
+    // Get the current user's name for the transaction
+    const currentUser = user?.name || user?.email || 'Unknown User';
+
     const transaction = {
       itemId: newTransaction.itemId,
       itemName: selectedItem.name,
       type: newTransaction.type,
       quantity: newTransaction.quantity,
       previousQuantity: selectedItem.quantity,
-      newQuantity: newTransaction.type === 'in' 
+      newQuantity: newTransaction.type === 'in'
         ? selectedItem.quantity + newTransaction.quantity
         : selectedItem.quantity - newTransaction.quantity,
-      user: newTransaction.user,
+      user: currentUser,
       notes: newTransaction.notes,
       reason: newTransaction.reason,
     };
@@ -138,7 +138,6 @@ const StockMovement = ({
       itemId: '',
       type: 'in',
       quantity: 0,
-      user: '',
       notes: '',
       reason: '',
     });
@@ -254,21 +253,6 @@ const StockMovement = ({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="user">Performed By</Label>
-                <Select value={newTransaction.user} onValueChange={(value) => setNewTransaction({ ...newTransaction, user: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user} value={user}>
-                        {user}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <Textarea
                   id="notes"
@@ -326,9 +310,8 @@ const StockMovement = ({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`font-medium ${
-                      transaction.type === 'in' ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <span className={`font-medium ${transaction.type === 'in' ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {transaction.type === 'in' ? '+' : '-'}{transaction.quantity}
                     </span>
                   </TableCell>
@@ -412,11 +395,10 @@ const StockMovement = ({
             <Package className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              filteredTransactions.reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0) >= 0
+            <div className={`text-2xl font-bold ${filteredTransactions.reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0) >= 0
                 ? 'text-green-600'
                 : 'text-red-600'
-            }`}>
+              }`}>
               {filteredTransactions
                 .reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0)
                 .toLocaleString()}

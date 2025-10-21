@@ -73,7 +73,6 @@ interface PurchaseOrdersProps {
   selectedBranches: string[];
   onBranchChange: (branches: string[]) => void;
   lowStockItems: Array<{ id: string; name: string; currentQuantity: number; reorderThreshold: number; supplier: string; branch: string; unitPrice: number }>;
-  users: string[];
   onCreateOrder: (order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'requestedDate'>) => void;
   onUpdateOrderStatus: (orderId: string, status: PurchaseOrder['status']) => Promise<void>;
 }
@@ -85,17 +84,15 @@ const PurchaseOrders = ({
   selectedBranches,
   onBranchChange,
   lowStockItems, 
-  users, 
   onCreateOrder, 
   onUpdateOrderStatus 
 }: PurchaseOrdersProps) => {
-  const { userRole } = useAdminRole();
+  const { user, userRole } = useAdminRole();
   const isManager = userRole === "MANAGER";
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newOrder, setNewOrder] = useState({
     supplier: '',
     items: [] as PurchaseOrderItem[],
-    requestedBy: '',
     notes: '',
     branch: '',
   });
@@ -136,11 +133,14 @@ const PurchaseOrders = ({
   };
 
   const handleCreateOrder = () => {
+    // Get the current user's name for the order
+    const currentUser = user?.name || user?.email || 'Unknown User';
+
     const order = {
       supplier: newOrder.supplier,
       items: newOrder.items,
       totalAmount: newOrder.items.reduce((sum, item) => sum + item.totalPrice, 0),
-      requestedBy: newOrder.requestedBy,
+      requestedBy: currentUser,
       notes: newOrder.notes,
       branch: newOrder.branch,
       status: 'requested' as const,
@@ -150,7 +150,6 @@ const PurchaseOrders = ({
     setNewOrder({
       supplier: '',
       items: [],
-      requestedBy: '',
       notes: '',
       branch: '',
     });
@@ -284,21 +283,6 @@ const PurchaseOrders = ({
                    </div>
                  </div>
                </div>
-              <div className="space-y-1">
-                <Label htmlFor="requestedBy">Requested By</Label>
-                <Select value={newOrder.requestedBy} onValueChange={(value) => setNewOrder({ ...newOrder, requestedBy: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user} value={user}>
-                        {user}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               
                              {/* Low Stock Items */}
                <div>

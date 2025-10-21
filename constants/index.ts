@@ -25,22 +25,22 @@ export const adminSideBarLinks = [
   },
 
   {
-    img: "/icons/admin/book.svg",
+    img: "/icons/admin/service-appointment.svg",
     route: "/admin/appointments",
     text: "All Appointments",
   },
   {
-    img: "/icons/admin/bookmark.svg",
+    img: "/icons/admin/inventory.png",
     route: "/admin/inventory",
     text: "Inventory Management",
   },
   {
-    img: "/icons/admin/receipt.svg",
+    img: "/icons/admin/sales.png",
     route: "/admin/sales",
     text: "Sales Management",
   },
   {
-    img: "/icons/admin/calendar.svg",
+    img: "/icons/admin/staffschedule.png",
     route: "/admin/scheduling",
     text: "Staff Scheduling",
   },
