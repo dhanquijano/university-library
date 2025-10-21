@@ -4,9 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Users, 
-  AlertTriangle, 
+import {
+  Users,
+  AlertTriangle,
   Settings,
   Bell,
   Package,
@@ -41,9 +41,9 @@ interface InventorySettingsProps {
   onUpdateSuppliers: (suppliers: string[]) => void;
 }
 
-const InventorySettings = ({ 
-  categories, 
-  suppliers, 
+const InventorySettings = ({
+  categories,
+  suppliers,
   users,
   onUpdateCategories,
   onUpdateSuppliers
@@ -168,7 +168,7 @@ const InventorySettings = ({
                 {notifications.lowStockAlerts ? "Enabled" : "Disabled"}
               </Button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div>
                 <Label>Expiration Alerts</Label>
@@ -359,7 +359,7 @@ const InventorySettings = ({
                       <Input
                         id="supplierName"
                         value={newSupplier.name}
-                        onChange={(e) => setNewSupplier({...newSupplier, name: e.target.value})}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
                         placeholder="e.g., Professional Beauty Supply Co."
                       />
                     </div>
@@ -368,7 +368,7 @@ const InventorySettings = ({
                       <Input
                         id="supplierContact"
                         value={newSupplier.contact}
-                        onChange={(e) => setNewSupplier({...newSupplier, contact: e.target.value})}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, contact: e.target.value })}
                         placeholder="Contact person name"
                       />
                     </div>
@@ -378,7 +378,7 @@ const InventorySettings = ({
                         id="supplierEmail"
                         type="email"
                         value={newSupplier.email}
-                        onChange={(e) => setNewSupplier({...newSupplier, email: e.target.value})}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, email: e.target.value })}
                         placeholder="supplier@example.com"
                       />
                     </div>
@@ -387,7 +387,7 @@ const InventorySettings = ({
                       <Input
                         id="supplierPhone"
                         value={newSupplier.phone}
-                        onChange={(e) => setNewSupplier({...newSupplier, phone: e.target.value})}
+                        onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
                         placeholder="+63 XXX XXX XXXX"
                       />
                     </div>

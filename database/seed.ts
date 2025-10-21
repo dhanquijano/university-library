@@ -1,8 +1,8 @@
-import dummyBooks from "../dummybooks.json";
+
 import fs from "fs";
 import path from "path";
 import ImageKit from "imagekit";
-import { books, servicesCatalog } from "@/database/schema";
+import { servicesCatalog } from "@/database/schema";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { config } from "dotenv";
@@ -60,25 +60,7 @@ const seed = async () => {
       console.log("Skipping services seed:", e);
     }
 
-    for (const book of dummyBooks) {
-      const coverUrl = (await uploadToImageKit(
-        book.coverUrl,
-        `${book.title}.jpg`,
-        "/books/covers",
-      )) as string;
 
-      const videoUrl = (await uploadToImageKit(
-        book.videoUrl,
-        `${book.title}.mp4`,
-        "/books/videos",
-      )) as string;
-
-      await db.insert(books).values({
-        ...book,
-        coverUrl,
-        videoUrl,
-      });
-    }
     console.log("Data seeded successfully!");
   } catch (error) {
     console.error("Error seeding data: ", error);

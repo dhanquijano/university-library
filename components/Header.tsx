@@ -21,6 +21,11 @@ const Header = ({ session }: { session: Session }) => {
             Appointments
           </Link>
         </li>
+        <li>
+          <Link className="text-lg text-primary" href="/contact">
+            Contact Us
+          </Link>
+        </li>
         {session?.user ? (
           <>
             {(session?.user?.role === "ADMIN" ||

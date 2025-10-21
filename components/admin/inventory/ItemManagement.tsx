@@ -30,11 +30,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Package, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Package,
   AlertTriangle,
   Calendar,
   Coins
@@ -66,9 +66,9 @@ interface ItemManagementProps {
   onDeleteItem: (id: string) => Promise<void>;
 }
 
-const ItemManagement = ({ 
-  items = [], 
-  categories = [], 
+const ItemManagement = ({
+  items = [],
+  categories = [],
   suppliers = [],
   branches = [],
   selectedBranches = [],
@@ -82,14 +82,14 @@ const ItemManagement = ({
   const isManager = userRole === "MANAGER";
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  
+
   // Helper function to calculate correct status based on quantity and reorder threshold
   const calculateItemStatus = (quantity: number, reorderThreshold: number) => {
     if (quantity === 0) return 'out-of-stock';
     if (quantity <= reorderThreshold) return 'low-stock';
     return 'in-stock';
   };
-  
+
   // Ensure editingItem stays in sync when items are updated from parent
   useEffect(() => {
     if (editingItem) {
@@ -112,7 +112,7 @@ const ItemManagement = ({
   });
 
   // Filter items based on selected branches
-  const filteredItems = selectedBranches.length > 0 
+  const filteredItems = selectedBranches.length > 0
     ? items.filter(item => selectedBranches.includes(item.branch))
     : items;
 
@@ -141,10 +141,10 @@ const ItemManagement = ({
         ...newItem,
         status: calculateItemStatus(newItem.quantity, newItem.reorderThreshold)
       };
-      
+
       console.log('Adding item with branch:', item.branch);
       console.log('Full item data:', item);
-      
+
       await onAddItem(item);
       setNewItem({
         name: '', sku: '', category: '', quantity: 0, reorderThreshold: 10, unitPrice: 0, supplier: '', expirationDate: '', branch: '',
@@ -171,7 +171,7 @@ const ItemManagement = ({
           branch: editingItem.branch,
           status: calculateItemStatus(editingItem.quantity, editingItem.reorderThreshold)
         };
-        
+
         console.log('Sending update data:', updatedItem);
         await onUpdateItem(editingItem.id, updatedItem);
         setEditingItem(null);
@@ -323,7 +323,7 @@ const ItemManagement = ({
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleAddItem}
                 disabled={!newItem.name || !newItem.sku || !newItem.category || !newItem.supplier || !newItem.branch}
               >

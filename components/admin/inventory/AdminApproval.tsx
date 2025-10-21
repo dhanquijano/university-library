@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   CheckCircle,
   XCircle,
@@ -31,7 +32,10 @@ import {
   User,
   Calendar,
   Package,
-  DollarSign
+  DollarSign,
+  ArrowRightLeft,
+  ShoppingCart,
+  Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import BranchFilter from "./BranchFilter";
@@ -60,12 +64,34 @@ interface ItemRequest {
   branch: string;
 }
 
+interface BranchStock {
+  branch: string;
+  itemId: string;
+  itemName: string;
+  availableQuantity: number;
+  unitPrice: number;
+  originalItemId?: string; // Maps back to the requested item ID
+}
+
+interface FulfillmentPlan {
+  itemId: string;
+  itemName: string;
+  requestedQuantity: number;
+  transfers: Array<{
+    fromBranch: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+  purchaseOrderQuantity: number;
+  purchaseOrderPrice: number;
+}
+
 interface AdminApprovalProps {
   requests: ItemRequest[];
   branches: string[];
   selectedBranches: string[];
   onBranchChange: (branches: string[]) => void;
-  onApproveRequest: (requestId: string, notes?: string) => Promise<void>;
+  onApproveRequest: (requestId: string, fulfillmentPlan: FulfillmentPlan[], notes?: string) => Promise<void>;
   onRejectRequest: (requestId: string, reason: string) => Promise<void>;
 }
 
@@ -86,6 +112,11 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  
+  // Enhanced approval state
+  const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
+  const [fulfillmentPlan, setFulfillmentPlan] = useState<FulfillmentPlan[]>([]);
+  const [isLoadingStocks, setIsLoadingStocks] = useState(false);
 
   // Filter requests based on selected branches
   const filteredRequests = selectedBranches.length === 0
@@ -96,15 +127,80 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const pendingRequests = filteredRequests.filter(r => r.status === "pending");
   const reviewedRequests = filteredRequests.filter(r => r.status !== "pending");
 
+  // Fetch available stock from other branches for the requested items
+  const fetchBranchStocks = async (requestItems: RequestItem[], targetBranch: string) => {
+    setIsLoadingStocks(true);
+    try {
+      const itemIds = requestItems.map(item => item.itemId);
+      const response = await fetch(`/api/inventory/branch-stocks?itemIds=${itemIds.join(',')}&excludeBranch=${targetBranch}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch branch stocks');
+      }
+      
+      const stocks = await response.json();
+      console.log('Fetched branch stocks:', stocks);
+      console.log('Requested item IDs:', itemIds);
+      setBranchStocks(stocks);
+      
+      // Initialize fulfillment plan
+      const initialPlan = requestItems.map(item => {
+        // Find stocks that match this item by originalItemId (mapped from SKU)
+        const availableStocks = stocks.filter((stock: BranchStock) => 
+          stock.originalItemId === item.itemId
+        );
+        
+        let remainingQuantity = item.quantity;
+        const transfers: Array<{ fromBranch: string; quantity: number; unitPrice: number }> = [];
+        
+        // Try to fulfill from available stocks
+        for (const stock of availableStocks) {
+          if (remainingQuantity <= 0) break;
+          
+          const transferQuantity = Math.min(remainingQuantity, stock.availableQuantity);
+          if (transferQuantity > 0) {
+            transfers.push({
+              fromBranch: stock.branch,
+              quantity: transferQuantity,
+              unitPrice: stock.unitPrice
+            });
+            remainingQuantity -= transferQuantity;
+          }
+        }
+        
+        return {
+          itemId: item.itemId,
+          itemName: item.itemName,
+          requestedQuantity: item.quantity,
+          transfers,
+          purchaseOrderQuantity: remainingQuantity,
+          purchaseOrderPrice: item.unitPrice
+        };
+      });
+      
+      setFulfillmentPlan(initialPlan);
+    } catch (error) {
+      console.error('Error fetching branch stocks:', error);
+      toast.error('Failed to load branch inventory data');
+    } finally {
+      setIsLoadingStocks(false);
+    }
+  };
+
   const handleViewRequest = (request: ItemRequest) => {
     setSelectedRequest(request);
     setIsViewDialogOpen(true);
   };
 
-  const handleApproveClick = (request: ItemRequest) => {
+  const handleApproveClick = async (request: ItemRequest) => {
     setSelectedRequest(request);
     setApprovalNotes("");
+    setFulfillmentPlan([]);
+    setBranchStocks([]);
     setIsApproveDialogOpen(true);
+    
+    // Fetch available stocks from other branches
+    await fetchBranchStocks(request.items, request.branch);
   };
 
   const handleRejectClick = (request: ItemRequest) => {
@@ -113,15 +209,59 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
     setIsRejectDialogOpen(true);
   };
 
+  const updateTransferQuantity = (itemId: string, fromBranch: string, newQuantity: number) => {
+    setFulfillmentPlan(prev => prev.map(item => {
+      if (item.itemId !== itemId) return item;
+      
+      // Check if transfer already exists
+      const existingTransferIndex = item.transfers.findIndex(t => t.fromBranch === fromBranch);
+      let updatedTransfers = [...item.transfers];
+      
+      if (existingTransferIndex >= 0) {
+        // Update existing transfer
+        updatedTransfers[existingTransferIndex] = {
+          ...updatedTransfers[existingTransferIndex],
+          quantity: Math.max(0, newQuantity)
+        };
+      } else if (newQuantity > 0) {
+        // Add new transfer
+        const branchStock = branchStocks.find(s => 
+          s.originalItemId === itemId && s.branch === fromBranch
+        );
+        if (branchStock) {
+          updatedTransfers.push({
+            fromBranch,
+            quantity: Math.max(0, newQuantity),
+            unitPrice: branchStock.unitPrice
+          });
+        }
+      }
+      
+      // Remove transfers with 0 quantity
+      updatedTransfers = updatedTransfers.filter(t => t.quantity > 0);
+      
+      const totalTransferred = updatedTransfers.reduce((sum, t) => sum + t.quantity, 0);
+      const purchaseOrderQuantity = Math.max(0, item.requestedQuantity - totalTransferred);
+      
+      return {
+        ...item,
+        transfers: updatedTransfers,
+        purchaseOrderQuantity
+      };
+    }));
+  };
+
   const handleApproveConfirm = async () => {
     if (!selectedRequest) return;
 
     try {
-      await onApproveRequest(selectedRequest.id, approvalNotes);
+      await onApproveRequest(selectedRequest.id, fulfillmentPlan, approvalNotes);
       setIsApproveDialogOpen(false);
       setSelectedRequest(null);
       setApprovalNotes("");
-      toast.success("Request approved - Stock levels and purchase order updated");
+      setFulfillmentPlan([]);
+      setBranchStocks([]);
+      toast.success("Request approved with fulfillment plan");
     } catch (error) {
       toast.error("Failed to approve request");
     }
@@ -179,6 +319,21 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
     return <Badge variant="secondary" className="text-xs">Normal</Badge>;
   };
 
+  const getTotalTransferCost = () => {
+    return fulfillmentPlan.reduce((total, item) => {
+      const transferCost = item.transfers.reduce((sum, transfer) => 
+        sum + (transfer.quantity * transfer.unitPrice), 0
+      );
+      return total + transferCost;
+    }, 0);
+  };
+
+  const getTotalPurchaseOrderCost = () => {
+    return fulfillmentPlan.reduce((total, item) => 
+      total + (item.purchaseOrderQuantity * item.purchaseOrderPrice), 0
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -186,7 +341,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
         <div>
           <h2 className="text-2xl font-bold">Request Approvals</h2>
           <p className="text-muted-foreground">
-            Review and approve item requests from managers
+            Review requests and choose between branch transfers or purchase orders
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -476,26 +631,168 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
 
       {/* Approve Dialog */}
       <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-5xl  ">
           <DialogHeader className="text-white">
-            <DialogTitle>Approve Request</DialogTitle>
+            <DialogTitle>Approve Request - {selectedRequest?.requestNumber}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this request? This will create a purchase order and update stock levels for the requested items.
+              Review requested items and choose transfer quantities from available branches
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2 ">
-              <Label htmlFor="approval-notes " className="text-white">Approval Notes (Optional)</Label>
-              <Textarea
-                id="approval-notes"
-                value={approvalNotes}
-                onChange={(e) => setApprovalNotes(e.target.value)}
-                placeholder="Add any notes about this approval..."
-                rows={3}
-              />
+          {selectedRequest && (
+            <div className="space-y-6">
+              {isLoadingStocks ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-2 text-muted-foreground">Loading branch inventory data...</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">Requested Items</h3>
+                  
+                  {selectedRequest.items.map((requestedItem) => {
+                    const availableStocks = branchStocks.filter(stock => 
+                      stock.originalItemId === requestedItem.itemId
+                    );
+                    const currentPlan = fulfillmentPlan.find(plan => plan.itemId === requestedItem.itemId);
+                    const totalTransferred = currentPlan?.transfers.reduce((sum, t) => sum + t.quantity, 0) || 0;
+                    const remainingQuantity = requestedItem.quantity - totalTransferred;
+                    
+                    return (
+                      <Card key={requestedItem.itemId} className="border-2">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center justify-between">
+                            <span>{requestedItem.itemName}</span>
+                            <div className="flex gap-2">
+                              <Badge variant="outline">Requested: {requestedItem.quantity}</Badge>
+                              <Badge variant={remainingQuantity > 0 ? "destructive" : "default"}>
+                                Remaining: {remainingQuantity}
+                              </Badge>
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* Available Stock from Other Branches */}
+                          {availableStocks.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-blue-600">
+                                <ArrowRightLeft className="h-4 w-4" />
+                                Available from Other Branches
+                              </div>
+                              {availableStocks.map((stock, index) => {
+                                const currentTransfer = currentPlan?.transfers.find(t => t.fromBranch === stock.branch);
+                                const transferQuantity = currentTransfer?.quantity || 0;
+                                
+                                return (
+                                  <div key={index} className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
+                                    <Building2 className="h-4 w-4 text-blue-600" />
+                                    <div className="flex-1">
+                                      <div className="font-medium">{getBranchName(stock.branch)}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        Available: {stock.availableQuantity} units • ₱{stock.unitPrice.toLocaleString()} per unit
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Label className="text-sm">Transfer:</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={Math.min(stock.availableQuantity, requestedItem.quantity)}
+                                        value={transferQuantity}
+                                        onChange={(e) => updateTransferQuantity(
+                                          requestedItem.itemId, 
+                                          stock.branch, 
+                                          parseInt(e.target.value) || 0
+                                        )}
+                                        className="w-20"
+                                      />
+                                      <span className="text-sm text-muted-foreground">units</span>
+                                    </div>
+                                    <div className="text-right min-w-[80px]">
+                                      <div className="font-medium">
+                                        ₱{(transferQuantity * stock.unitPrice).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-gray-50 rounded-lg text-center text-muted-foreground">
+                              <Package className="h-6 w-6 mx-auto mb-2" />
+                              No stock available in other branches
+                            </div>
+                          )}
+
+                          {/* Purchase Order for Remaining */}
+                          {remainingQuantity > 0 && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-orange-600">
+                                <ShoppingCart className="h-4 w-4" />
+                                Purchase Order Required
+                              </div>
+                              <div className="flex items-center gap-4 p-3 bg-orange-50 rounded-lg">
+                                <ShoppingCart className="h-4 w-4 text-orange-600" />
+                                <div className="flex-1">
+                                  <div className="font-medium">New Purchase Order</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    ₱{requestedItem.unitPrice.toLocaleString()} per unit
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="font-medium">Quantity: {remainingQuantity}</div>
+                                </div>
+                                <div className="text-right min-w-[80px]">
+                                  <div className="font-medium">
+                                    ₱{(remainingQuantity * requestedItem.unitPrice).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {remainingQuantity === 0 && (
+                            <div className="text-center py-2 text-green-600 font-medium">
+                              <CheckCircle className="h-5 w-5 inline mr-2" />
+                              Fully covered by transfers
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-green-600">
+                    ₱{getTotalTransferCost().toLocaleString()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Transfer Cost</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-orange-600">
+                    ₱{getTotalPurchaseOrderCost().toLocaleString()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Total Purchase Order Cost</div>
+                </div>
+              </div>
+
+              {/* Approval Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="approval-notes" className="text-white">Approval Notes (Optional)</Label>
+                <Textarea
+                  id="approval-notes"
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  placeholder="Add any notes about this approval..."
+                  rows={3}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
@@ -504,6 +801,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
             <Button
               className="bg-green-600 hover:bg-green-700"
               onClick={handleApproveConfirm}
+              disabled={isLoadingStocks}
             >
               Approve Request
             </Button>

@@ -861,6 +861,63 @@ const InventoryPage = () => {
     }
   };
 
+  const handleEnhancedApproveRequest = async (requestId: string, fulfillmentPlan: any[], notes?: string) => {
+    try {
+      console.log('Approving request with fulfillment plan:', requestId, fulfillmentPlan);
+      const response = await fetch(`/api/inventory/item-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'approve',
+          reviewedBy: user?.name || user?.email || 'Admin',
+          notes,
+          fulfillmentPlan,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Enhanced approval result:', result);
+        
+        // Calculate totals for success message
+        const totalTransfers = fulfillmentPlan.reduce((sum, item) => 
+          sum + item.transfers.reduce((transferSum: number, transfer: any) => transferSum + transfer.quantity, 0), 0
+        );
+        const totalPurchases = fulfillmentPlan.reduce((sum, item) => sum + item.purchaseOrderQuantity, 0);
+        
+        let message = "Request approved successfully";
+        if (totalTransfers > 0 && totalPurchases > 0) {
+          message += ` - ${totalTransfers} items transferred, ${totalPurchases} items ordered`;
+        } else if (totalTransfers > 0) {
+          message += ` - ${totalTransfers} items transferred from other branches`;
+        } else if (totalPurchases > 0) {
+          message += ` - ${totalPurchases} items ordered via purchase order`;
+        }
+        
+        toast.success(message);
+
+        // Refresh all related data since stock was updated
+        console.log('Refreshing data after enhanced approval...');
+        await Promise.all([
+          fetchItemRequests(),
+          fetchPurchaseOrders(),
+          fetchInventoryItems(),
+          fetchStockTransactions()
+        ]);
+        console.log('Data refresh completed');
+      } else {
+        const error = await response.json();
+        console.error('Enhanced approval failed:', error);
+        toast.error(error.error || "Failed to approve request");
+      }
+    } catch (error) {
+      console.error('Error in enhanced approval:', error);
+      toast.error("Error approving request");
+    }
+  };
+
   const handleRejectRequest = async (requestId: string, reason: string) => {
     try {
       const response = await fetch(`/api/inventory/item-requests/${requestId}`, {
@@ -1214,7 +1271,7 @@ const InventoryPage = () => {
               requests={itemRequests}
               branches={branches}
               {...getBranchFilterProps()}
-              onApproveRequest={handleApproveRequest}
+              onApproveRequest={handleEnhancedApproveRequest}
               onRejectRequest={handleRejectRequest}
             />
           </TabsContent>

@@ -3,7 +3,6 @@ import {
   uuid,
   integer,
   text,
-  boolean,
   pgTable,
   date,
   pgEnum,
@@ -13,10 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN", "MANAGER", "STAFF"]);
-export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
-  "BORROWED",
-  "RETURNED",
-]);
+
 
 export const users = pgTable("users", {
   id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
@@ -31,38 +27,7 @@ export const users = pgTable("users", {
   }).defaultNow(),
 });
 
-export const books = pgTable("books", {
-  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
-  title: varchar("title", { length: 255 }).notNull(),
-  author: varchar("author", { length: 255 }).notNull(),
-  genre: text("genre").notNull(),
-  rating: integer("rating").notNull(),
-  coverUrl: text("cover_url").notNull(),
-  coverColor: varchar("cover_color", { length: 7 }).notNull(),
-  description: text("description").notNull(),
-  totalCopies: integer("total_copies").notNull().default(1),
-  availableCopies: integer("available_copies").notNull().default(0),
-  videoUrl: text("video_url").notNull(),
-  summary: varchar("summary").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
 
-export const borrowRecords = pgTable("borrow_records", {
-  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
-  userId: uuid("user_id")
-    .references(() => users.id)
-    .notNull(),
-  bookId: uuid("book_id")
-    .references(() => books.id)
-    .notNull(),
-  borrowDate: timestamp("borrow_date", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  dueDate: date("due_date").notNull(),
-  returnDate: date("return_date"),
-  status: BORROW_STATUS_ENUM("status").default("BORROWED").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-});
 
 export const appointments = pgTable("appointments", {
   id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
@@ -220,8 +185,47 @@ export const itemRequests = pgTable("item_requests", {
   notes: text("notes"),
   rejectionReason: text("rejection_reason"),
   branch: text("branch").notNull(),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const stockTransfers = pgTable("stock_transfers", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  transferNumber: text("transfer_number").notNull().unique(),
+  fromBranch: text("from_branch").notNull(),
+  toBranch: text("to_branch").notNull(),
+  status: text("status", { enum: ["pending", "in-transit", "completed", "cancelled"] })
+    .notNull()
+    .default("pending"),
+  requestId: text("request_id")
+    .references(() => itemRequests.id),
+  initiatedBy: text("initiated_by").notNull(),
+  initiatedDate: timestamp("initiated_date").defaultNow(),
+  completedBy: text("completed_by"),
+  completedDate: timestamp("completed_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const stockTransferItems = pgTable("stock_transfer_items", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  transferId: text("transfer_id")
+    .notNull()
+    .references(() => stockTransfers.id),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
+  itemName: text("item_name").notNull(),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const barbers = pgTable("barbers", {
@@ -294,7 +298,7 @@ export const shiftTemplates = pgTable("shift_templates", {
 // Transaction Verification Tables
 export const VERIFICATION_STATUS_ENUM = pgEnum("verification_status", [
   "pending",
-  "verified", 
+  "verified",
   "rejected"
 ]);
 

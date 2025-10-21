@@ -238,7 +238,7 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-600 mt-2">Welcome back! Here's what's happening with your business today.</p>
         </div>
         <div className="flex gap-2">
@@ -390,6 +390,7 @@ const AdminDashboard = () => {
                       <span>Staff Schedule</span>
                     </Button>
                   </Link>
+
                 </div>
               </CardContent>
             </Card>

@@ -21,7 +21,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { action, reviewedBy, notes, rejectionReason } = body;
+    const { action, reviewedBy, notes, rejectionReason, fulfillmentPlan } = body;
 
     if (!action || !['approve', 'reject'].includes(action)) {
       return NextResponse.json(
@@ -36,6 +36,8 @@ export async function PATCH(
         { status: 400 }
       );
     }
+
+    // Fulfillment plan is optional - if not provided, we'll just approve without processing transfers
 
     // Check if request exists and is pending
     const checkQuery = sql`
@@ -102,204 +104,291 @@ export async function PATCH(
     const updateResult = await db.execute(updateQuery);
     const updatedRequest = (updateResult as any).rows[0];
 
-    // If approved, create a purchase order and update stock
-    if (action === 'approve') {
+    // If approved, process the fulfillment plan (if provided)
+    if (action === 'approve' && fulfillmentPlan && fulfillmentPlan.length > 0) {
       try {
-        const purchaseOrderId = `po-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const orderNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-
-        // Get items and determine supplier
-        console.log('Raw request.items:', request.items);
-        console.log('Type of request.items:', typeof request.items);
-        const items = typeof request.items === 'string' ? JSON.parse(request.items) : request.items;
-        console.log('Parsed items:', items);
-        const supplier = items.length > 0 ? "General Supplier" : "Unknown Supplier";
-
-        // First, ensure the purchase_orders table exists
-        await db.execute(sql`
-          CREATE TABLE IF NOT EXISTS purchase_orders (
-            id TEXT PRIMARY KEY,
-            order_number TEXT UNIQUE NOT NULL,
-            supplier TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'requested',
-            total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
-            requested_by TEXT NOT NULL,
-            requested_date TIMESTAMPTZ DEFAULT NOW(),
-            ordered_date TIMESTAMPTZ,
-            received_date TIMESTAMPTZ,
-            notes TEXT,
-            branch TEXT NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
-          )
-        `);
-
-        // Create the purchase order
-        const createPOQuery = sql`
-          INSERT INTO purchase_orders (
-            id,
-            order_number,
-            supplier,
-            status,
-            total_amount,
-            requested_by,
-            requested_date,
-            ordered_date,
-            notes,
-            branch
-          )
-          VALUES (
-            ${purchaseOrderId},
-            ${orderNumber},
-            ${supplier},
-            'ordered',
-            ${request.total_amount},
-            ${request.requested_by},
-            ${request.requested_date || new Date().toISOString()},
-            ${reviewedDate}::timestamptz,
-            ${`Auto-generated from approved request ${updatedRequest.requestNumber}. ${notes || ''}`},
-            ${request.branch}
-          )
-        `;
-
-        await db.execute(createPOQuery);
-
-        // Create purchase order items if table exists
+        console.log('Processing fulfillment plan:', JSON.stringify(fulfillmentPlan, null, 2));
+        
+        // Get the user ID for transactions
+        let systemUserId = null;
         try {
-          await db.execute(sql`
-            CREATE TABLE IF NOT EXISTS purchase_order_items (
-              id TEXT PRIMARY KEY,
-              order_id TEXT NOT NULL,
-              item_id TEXT NOT NULL,
-              item_name TEXT NOT NULL,
-              quantity INTEGER NOT NULL,
-              unit_price NUMERIC(10,2) NOT NULL,
-              total_price NUMERIC(10,2) NOT NULL,
-              created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-          `);
+          const reviewerQuery = sql`
+            SELECT id FROM users WHERE full_name = ${reviewedBy} OR email = ${reviewedBy} LIMIT 1
+          `;
+          const reviewerResult = await db.execute(reviewerQuery);
+          const reviewer = (reviewerResult as any).rows[0];
+          
+          if (reviewer) {
+            systemUserId = reviewer.id;
+          } else {
+            const adminUsers = await db.execute(sql`
+              SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1
+            `);
+            const adminUser = (adminUsers as any).rows[0];
+            if (adminUser) {
+              systemUserId = adminUser.id;
+            }
+          }
+        } catch (userError) {
+          console.log('Could not find user for transactions:', userError);
+        }
 
-          // Insert items
-          for (const item of items) {
-            const itemId = `poi-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        if (!systemUserId) {
+          throw new Error('No admin user found to process fulfillment');
+        }
+
+        // Process each item in the fulfillment plan
+        for (const planItem of fulfillmentPlan) {
+          console.log(`Processing fulfillment for item: ${planItem.itemName}`);
+          
+          // Process stock transfers
+          if (planItem.transfers && planItem.transfers.length > 0) {
+            for (const transfer of planItem.transfers) {
+              if (transfer.quantity > 0) {
+                console.log(`Creating transfer: ${transfer.quantity} units from ${transfer.fromBranch} to ${request.branch}`);
+                
+                // Create stock transfer record
+                const transferNumber = `TRF-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+                const transferId = `st-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                
+                // Ensure stock_transfers table exists
+                await db.execute(sql`
+                  CREATE TABLE IF NOT EXISTS stock_transfers (
+                    id TEXT PRIMARY KEY,
+                    transfer_number TEXT UNIQUE NOT NULL,
+                    from_branch TEXT NOT NULL,
+                    to_branch TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    request_id TEXT,
+                    initiated_by TEXT NOT NULL,
+                    initiated_date TIMESTAMPTZ DEFAULT NOW(),
+                    completed_by TEXT,
+                    completed_date TIMESTAMPTZ,
+                    notes TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                  )
+                `);
+
+                await db.execute(sql`
+                  CREATE TABLE IF NOT EXISTS stock_transfer_items (
+                    id TEXT PRIMARY KEY,
+                    transfer_id TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    item_name TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    unit_price NUMERIC(10,2) NOT NULL,
+                    total_price NUMERIC(10,2) NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                  )
+                `);
+
+                // Create transfer
+                await db.execute(sql`
+                  INSERT INTO stock_transfers (
+                    id, transfer_number, from_branch, to_branch, status, request_id, 
+                    initiated_by, completed_by, completed_date, notes
+                  )
+                  VALUES (
+                    ${transferId}, ${transferNumber}, ${transfer.fromBranch}, ${request.branch}, 
+                    'completed', ${id}, ${reviewedBy || 'Admin'}, ${reviewedBy || 'Admin'}, 
+                    ${reviewedDate}::timestamptz, 
+                    ${'Auto-transfer from approved request ' + updatedRequest.requestNumber}
+                  )
+                `);
+
+                // Create transfer item
+                const transferItemId = `sti-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                await db.execute(sql`
+                  INSERT INTO stock_transfer_items (
+                    id, transfer_id, item_id, item_name, quantity, unit_price, total_price
+                  )
+                  VALUES (
+                    ${transferItemId}, ${transferId}, ${planItem.itemId}, ${planItem.itemName},
+                    ${transfer.quantity}, ${transfer.unitPrice}, ${transfer.quantity * transfer.unitPrice}
+                  )
+                `);
+
+                // Update stock levels - decrease from source branch
+                await db.execute(sql`
+                  UPDATE inventory_items 
+                  SET quantity = quantity - ${transfer.quantity}, updated_at = NOW()
+                  WHERE id = ${planItem.itemId} AND branch = ${transfer.fromBranch}
+                `);
+
+                // Create stock transaction for source branch (outgoing)
+                await db.insert(stockTransactions).values({
+                  itemId: planItem.itemId,
+                  type: 'out',
+                  quantity: transfer.quantity,
+                  previousQuantity: 0, // Will be updated by trigger if available
+                  newQuantity: 0, // Will be updated by trigger if available
+                  userId: systemUserId,
+                  notes: `Transfer to ${request.branch} - Request ${updatedRequest.requestNumber}`,
+                  reason: 'Stock Transfer Out',
+                  branch: transfer.fromBranch,
+                });
+
+                // Update stock levels - increase in target branch
+                const targetItems = await db.execute(sql`
+                  SELECT quantity FROM inventory_items 
+                  WHERE id = ${planItem.itemId} AND branch = ${request.branch}
+                `);
+
+                if ((targetItems as any).rows.length > 0) {
+                  // Item exists in target branch, update quantity
+                  await db.execute(sql`
+                    UPDATE inventory_items 
+                    SET quantity = quantity + ${transfer.quantity}, updated_at = NOW()
+                    WHERE id = ${planItem.itemId} AND branch = ${request.branch}
+                  `);
+                } else {
+                  // Item doesn't exist in target branch, create it
+                  const sourceItem = await db.execute(sql`
+                    SELECT * FROM inventory_items 
+                    WHERE id = ${planItem.itemId} AND branch = ${transfer.fromBranch}
+                    LIMIT 1
+                  `);
+
+                  if ((sourceItem as any).rows.length > 0) {
+                    const item = (sourceItem as any).rows[0];
+                    await db.execute(sql`
+                      INSERT INTO inventory_items (
+                        id, name, sku, category, quantity, reorder_threshold, unit_price,
+                        supplier, expiration_date, status, branch, created_at, updated_at
+                      )
+                      VALUES (
+                        ${crypto.randomUUID()}, ${item.name}, ${item.sku + '-' + request.branch}, 
+                        ${item.category}, ${transfer.quantity}, ${item.reorder_threshold}, 
+                        ${item.unit_price}, ${item.supplier}, ${item.expiration_date}, 
+                        'in-stock', ${request.branch}, NOW(), NOW()
+                      )
+                    `);
+                  }
+                }
+
+                // Create stock transaction for target branch (incoming)
+                await db.insert(stockTransactions).values({
+                  itemId: planItem.itemId,
+                  type: 'in',
+                  quantity: transfer.quantity,
+                  previousQuantity: 0, // Will be updated by trigger if available
+                  newQuantity: 0, // Will be updated by trigger if available
+                  userId: systemUserId,
+                  notes: `Transfer from ${transfer.fromBranch} - Request ${updatedRequest.requestNumber}`,
+                  reason: 'Stock Transfer In',
+                  branch: request.branch,
+                });
+
+                console.log(`Completed transfer: ${transfer.quantity} units of ${planItem.itemName} from ${transfer.fromBranch} to ${request.branch}`);
+              }
+            }
+          }
+
+          // Process purchase order for remaining quantity
+          if (planItem.purchaseOrderQuantity > 0) {
+            console.log(`Creating purchase order for ${planItem.purchaseOrderQuantity} units of ${planItem.itemName}`);
+            
+            // Create or find existing purchase order for this request
+            let purchaseOrderId = `po-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            const orderNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+            // Ensure purchase_orders table exists
+            await db.execute(sql`
+              CREATE TABLE IF NOT EXISTS purchase_orders (
+                id TEXT PRIMARY KEY,
+                order_number TEXT UNIQUE NOT NULL,
+                supplier TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'requested',
+                total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+                requested_by TEXT NOT NULL,
+                requested_date TIMESTAMPTZ DEFAULT NOW(),
+                ordered_date TIMESTAMPTZ,
+                received_date TIMESTAMPTZ,
+                notes TEXT,
+                branch TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+              )
+            `);
+
+            await db.execute(sql`
+              CREATE TABLE IF NOT EXISTS purchase_order_items (
+                id TEXT PRIMARY KEY,
+                order_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                item_name TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                unit_price NUMERIC(10,2) NOT NULL,
+                total_price NUMERIC(10,2) NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+              )
+            `);
+
+            // Create purchase order
+            const totalAmount = planItem.purchaseOrderQuantity * planItem.purchaseOrderPrice;
+            await db.execute(sql`
+              INSERT INTO purchase_orders (
+                id, order_number, supplier, status, total_amount, requested_by,
+                requested_date, ordered_date, notes, branch
+              )
+              VALUES (
+                ${purchaseOrderId}, ${orderNumber}, 'General Supplier', 'ordered',
+                ${totalAmount}, ${request.requested_by}, ${request.requested_date || new Date().toISOString()},
+                ${reviewedDate}::timestamptz, 
+                ${'Auto-generated from approved request ' + updatedRequest.requestNumber + '. ' + (notes || '')},
+                ${request.branch}
+              )
+            `);
+
+            // Create purchase order item
+            const poItemId = `poi-${Date.now()}-${Math.random().toString(36).slice(2)}`;
             await db.execute(sql`
               INSERT INTO purchase_order_items (
                 id, order_id, item_id, item_name, quantity, unit_price, total_price
               )
               VALUES (
-                ${itemId}, ${purchaseOrderId}, ${item.itemId}, ${item.itemName}, 
-                ${item.quantity}, ${item.unitPrice}, ${item.totalPrice}
+                ${poItemId}, ${purchaseOrderId}, ${planItem.itemId}, ${planItem.itemName},
+                ${planItem.purchaseOrderQuantity}, ${planItem.purchaseOrderPrice}, ${totalAmount}
               )
             `);
-          }
-        } catch (itemError) {
-          console.error("Error creating purchase order items:", itemError);
-        }
 
-        // Process each item in the approved request to update stock
-        console.log(`Processing ${items.length} items for stock update...`);
-        console.log('Items to process:', JSON.stringify(items, null, 2));
-        
-        for (const item of items) {
-          try {
-            console.log(`Processing item: ${item.itemName} (ID: ${item.itemId}), Quantity: ${item.quantity}`);
-            
-            // Get current item using Drizzle schema
-            const currentItems = await db
-              .select({ quantity: inventoryItems.quantity })
-              .from(inventoryItems)
-              .where(eq(inventoryItems.id, item.itemId))
-              .limit(1);
+            // Update stock for purchased items (simulate immediate receipt for now)
+            const targetItems = await db.execute(sql`
+              SELECT quantity FROM inventory_items 
+              WHERE id = ${planItem.itemId} AND branch = ${request.branch}
+            `);
 
-            console.log(`Found ${currentItems.length} items in inventory for ID: ${item.itemId}`);
-
-            if (currentItems.length > 0) {
-              const previousQuantity = currentItems[0].quantity;
-              const newQuantity = previousQuantity + parseInt(item.quantity);
-
-              console.log(`Stock update for ${item.itemName}: ${previousQuantity} -> ${newQuantity}`);
-
-              // Get the current user ID (the one who approved the request)
-              let systemUserId = null;
-              try {
-                // First try to find the user who reviewed the request by name/email
-                const reviewerQuery = sql`
-                  SELECT id FROM users WHERE full_name = ${reviewedBy} OR email = ${reviewedBy} LIMIT 1
-                `;
-                const reviewerResult = await db.execute(reviewerQuery);
-                const reviewer = (reviewerResult as any).rows[0];
-                
-                if (reviewer) {
-                  systemUserId = reviewer.id;
-                  console.log(`Found reviewer user: ${systemUserId} (${reviewedBy})`);
-                } else {
-                  // Fallback to first admin user if reviewer not found
-                  const adminUsers = await db.execute(sql`
-                    SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1
-                  `);
-                  const adminUser = (adminUsers as any).rows[0];
-                  if (adminUser) {
-                    systemUserId = adminUser.id;
-                    console.log(`Fallback to admin user: ${systemUserId}`);
-                  } else {
-                    console.log('No admin users found in database');
-                  }
-                }
-              } catch (userError) {
-                console.log('Could not find user for stock transaction:', userError);
-              }
-
-              // Only proceed if we have a valid user ID
-              if (systemUserId) {
-                console.log('Creating stock transaction...');
-                // Create stock transaction using Drizzle schema
-                const newTransaction = await db.insert(stockTransactions).values({
-                  itemId: item.itemId,
-                  type: 'in',
-                  quantity: parseInt(item.quantity),
-                  previousQuantity: previousQuantity,
-                  newQuantity: newQuantity,
-                  userId: systemUserId,
-                  notes: `Stock added from approved request ${updatedRequest.requestNumber}`,
-                  reason: 'Request Approved',
-                  branch: request.branch,
-                }).returning();
-
-                console.log('Stock transaction created:', newTransaction[0]?.id);
-
-                console.log('Updating inventory quantity...');
-                // Update inventory quantity using Drizzle schema
-                const updatedItem = await db
-                  .update(inventoryItems)
-                  .set({ 
-                    quantity: newQuantity,
-                    updatedAt: new Date()
-                  })
-                  .where(eq(inventoryItems.id, item.itemId))
-                  .returning();
-
-                console.log('Inventory updated:', updatedItem[0]?.id);
-                console.log(`Successfully updated stock for item ${item.itemName}: ${previousQuantity} -> ${newQuantity}`);
-              } else {
-                console.error('No admin user found to create stock transaction - skipping stock update');
-              }
-            } else {
-              console.error(`Item not found in inventory: ${item.itemId}`);
-              // Let's also check what items exist in the database
-              const allItems = await db.select({ id: inventoryItems.id, name: inventoryItems.name }).from(inventoryItems).limit(5);
-              console.log('Sample items in database:', allItems);
+            if ((targetItems as any).rows.length > 0) {
+              await db.execute(sql`
+                UPDATE inventory_items 
+                SET quantity = quantity + ${planItem.purchaseOrderQuantity}, updated_at = NOW()
+                WHERE id = ${planItem.itemId} AND branch = ${request.branch}
+              `);
             }
-          } catch (stockError) {
-            console.error(`Error updating stock for item ${item.itemName}:`, stockError);
-            console.error('Stock error details:', stockError);
+
+            // Create stock transaction for purchase
+            await db.insert(stockTransactions).values({
+              itemId: planItem.itemId,
+              type: 'in',
+              quantity: planItem.purchaseOrderQuantity,
+              previousQuantity: 0,
+              newQuantity: 0,
+              userId: systemUserId,
+              notes: `Purchase order ${orderNumber} - Request ${updatedRequest.requestNumber}`,
+              reason: 'Purchase Order',
+              branch: request.branch,
+            });
+
+            console.log(`Created purchase order ${orderNumber} for ${planItem.purchaseOrderQuantity} units of ${planItem.itemName}`);
           }
         }
 
-        console.log(`Created purchase order ${orderNumber} and updated stock from approved request ${updatedRequest.requestNumber}`);
-      } catch (poError) {
-        console.error("Error creating purchase order and updating stock:", poError);
-        console.error("PO Error details:", poError);
-        // Don't fail the approval if PO creation fails, but log the error
+        console.log(`Successfully processed fulfillment plan for request ${updatedRequest.requestNumber}`);
+      } catch (fulfillmentError) {
+        console.error("Error processing fulfillment plan:", fulfillmentError);
+        console.error("Fulfillment error details:", fulfillmentError);
+        // Don't fail the approval if fulfillment processing fails, but log the error
       }
     }
 
