@@ -7,14 +7,14 @@ import React from "react";
  */
 export function useAdminRole() {
   const { data: session, status } = useSession();
-  
+
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER" || session?.user?.role === "STAFF";
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
-  
+
   // Handle session refresh scenarios
   const isRefreshing = status === "loading" && session === undefined;
-  
+
   return {
     isAdmin,
     isLoading,
@@ -32,14 +32,14 @@ export function useAdminRole() {
  */
 export function useAdminOnlyRole() {
   const { data: session, status } = useSession();
-  
+
   const isAdminOnly = session?.user?.role === "ADMIN";
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
-  
+
   // Handle session refresh scenarios
   const isRefreshing = status === "loading" && session === undefined;
-  
+
   return {
     isAdminOnly,
     isLoading,
@@ -95,27 +95,27 @@ export function getAdminNavItems(role: string) {
       route: "/admin",
       text: "Home",
     },
-    
-  {
-    img: "/icons/admin/appointment.png",
-    route: "/admin/appointments",
-    text: "All Appointments",
-  },
-  {
-    img: "/icons/admin/inventory.png",
-    route: "/admin/inventory",
-    text: "Inventory Management",
-  },
-  {
-    img: "/icons/admin/sales.png",
-    route: "/admin/sales",
-    text: "Sales Management",
-  },
-  {
-    img: "/icons/admin/staffschedule.png",
-    route: "/admin/scheduling",
-    text: "Staff Scheduling",
-  },
+
+    {
+      img: "/icons/admin/appointment.png",
+      route: "/admin/appointments",
+      text: "All Appointments",
+    },
+    {
+      img: "/icons/admin/inventory.png",
+      route: "/admin/inventory",
+      text: "Inventory Management",
+    },
+    {
+      img: "/icons/admin/sales.png",
+      route: "/admin/sales",
+      text: "Sales Management",
+    },
+    {
+      img: "/icons/admin/staffschedule.png",
+      route: "/admin/scheduling",
+      text: "Staff Scheduling",
+    },
   ];
 
   // For now, all admin roles get the same navigation items
@@ -125,9 +125,9 @@ export function getAdminNavItems(role: string) {
   }
 
   // Return limited items for other roles
-  return baseItems.filter(item => 
-    item.route === "/" || 
-    item.route === "/admin" || 
+  return baseItems.filter(item =>
+    item.route === "/" ||
+    item.route === "/admin" ||
     item.route === "/admin/appointments"
   );
 }
@@ -148,7 +148,7 @@ export function getBranchFilterForRole(userRole: string, userBranch: string | nu
       branchId: null
     };
   }
-  
+
   if (userRole === "MANAGER" && userBranch) {
     // Managers can only see their assigned branch
     return {
@@ -158,7 +158,7 @@ export function getBranchFilterForRole(userRole: string, userBranch: string | nu
       branchId: userBranch
     };
   }
-  
+
   // Default: no filtering (for STAFF or users without branch assignment)
   return {
     shouldFilter: false,
@@ -177,14 +177,14 @@ export async function getBranchNameFromId(branchId: string): Promise<string | nu
   try {
     const { db } = await import("@/database/drizzle");
     const { sql } = await import("drizzle-orm");
-    
+
     const query = sql`
       SELECT name FROM inventory_branches WHERE id = ${branchId} LIMIT 1
     `;
-    
+
     const result = await db.execute(query);
     const branch = (result as any).rows?.[0];
-    
+
     return branch?.name || null;
   } catch (error) {
     console.error("Error fetching branch name:", error);
@@ -238,12 +238,12 @@ export async function getBranchMap(): Promise<Record<string, string>> {
   try {
     const response = await fetch('/api/inventory/branches');
     const branches = await response.json();
-    
+
     const branchMap: Record<string, string> = {};
     branches.forEach((branch: any) => {
       branchMap[branch.id] = branch.name;
     });
-    
+
     return branchMap;
   } catch (error) {
     console.error("Error fetching branch map:", error);
@@ -254,45 +254,45 @@ export async function getBranchMap(): Promise<Record<string, string>> {
 /**
  * Component wrapper that only renders children if user is admin
  */
-export function AdminOnly({ 
-  children, 
-  fallback = null 
-}: { 
-  children: React.ReactNode; 
+export function AdminOnly({
+  children,
+  fallback = null
+}: {
+  children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
   const { isAdmin, isLoading } = useAdminRole();
-  
+
   if (isLoading) {
     return null; // or a loading spinner
   }
-  
+
   if (!isAdmin) {
     return React.createElement(React.Fragment, null, fallback);
   }
-  
+
   return React.createElement(React.Fragment, null, children);
 }
 
 /**
  * Component wrapper that only renders children if user has ADMIN role specifically
  */
-export function AdminOnlyRole({ 
-  children, 
-  fallback = null 
-}: { 
-  children: React.ReactNode; 
+export function AdminOnlyRole({
+  children,
+  fallback = null
+}: {
+  children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
   const { isAdminOnly, isLoading } = useAdminOnlyRole();
-  
+
   if (isLoading) {
     return null; // or a loading spinner
   }
-  
+
   if (!isAdminOnly) {
     return React.createElement(React.Fragment, null, fallback);
   }
-  
+
   return React.createElement(React.Fragment, null, children);
 }

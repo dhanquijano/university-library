@@ -396,8 +396,8 @@ const StockMovement = ({
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${filteredTransactions.reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0) >= 0
-                ? 'text-green-600'
-                : 'text-red-600'
+              ? 'text-green-600'
+              : 'text-red-600'
               }`}>
               {filteredTransactions
                 .reduce((sum, t) => sum + (t.type === 'in' ? t.quantity : -t.quantity), 0)

@@ -112,7 +112,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
-  
+
   // Enhanced approval state
   const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
   const [fulfillmentPlan, setFulfillmentPlan] = useState<FulfillmentPlan[]>([]);
@@ -133,30 +133,30 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
     try {
       const itemIds = requestItems.map(item => item.itemId);
       const response = await fetch(`/api/inventory/branch-stocks?itemIds=${itemIds.join(',')}&excludeBranch=${targetBranch}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch branch stocks');
       }
-      
+
       const stocks = await response.json();
       console.log('Fetched branch stocks:', stocks);
       console.log('Requested item IDs:', itemIds);
       setBranchStocks(stocks);
-      
+
       // Initialize fulfillment plan
       const initialPlan = requestItems.map(item => {
         // Find stocks that match this item by originalItemId (mapped from SKU)
-        const availableStocks = stocks.filter((stock: BranchStock) => 
+        const availableStocks = stocks.filter((stock: BranchStock) =>
           stock.originalItemId === item.itemId
         );
-        
+
         let remainingQuantity = item.quantity;
         const transfers: Array<{ fromBranch: string; quantity: number; unitPrice: number }> = [];
-        
+
         // Try to fulfill from available stocks
         for (const stock of availableStocks) {
           if (remainingQuantity <= 0) break;
-          
+
           const transferQuantity = Math.min(remainingQuantity, stock.availableQuantity);
           if (transferQuantity > 0) {
             transfers.push({
@@ -167,7 +167,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
             remainingQuantity -= transferQuantity;
           }
         }
-        
+
         return {
           itemId: item.itemId,
           itemName: item.itemName,
@@ -177,7 +177,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
           purchaseOrderPrice: item.unitPrice
         };
       });
-      
+
       setFulfillmentPlan(initialPlan);
     } catch (error) {
       console.error('Error fetching branch stocks:', error);
@@ -198,7 +198,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
     setFulfillmentPlan([]);
     setBranchStocks([]);
     setIsApproveDialogOpen(true);
-    
+
     // Fetch available stocks from other branches
     await fetchBranchStocks(request.items, request.branch);
   };
@@ -212,11 +212,11 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const updateTransferQuantity = (itemId: string, fromBranch: string, newQuantity: number) => {
     setFulfillmentPlan(prev => prev.map(item => {
       if (item.itemId !== itemId) return item;
-      
+
       // Check if transfer already exists
       const existingTransferIndex = item.transfers.findIndex(t => t.fromBranch === fromBranch);
       let updatedTransfers = [...item.transfers];
-      
+
       if (existingTransferIndex >= 0) {
         // Update existing transfer
         updatedTransfers[existingTransferIndex] = {
@@ -225,7 +225,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
         };
       } else if (newQuantity > 0) {
         // Add new transfer
-        const branchStock = branchStocks.find(s => 
+        const branchStock = branchStocks.find(s =>
           s.originalItemId === itemId && s.branch === fromBranch
         );
         if (branchStock) {
@@ -236,13 +236,13 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
           });
         }
       }
-      
+
       // Remove transfers with 0 quantity
       updatedTransfers = updatedTransfers.filter(t => t.quantity > 0);
-      
+
       const totalTransferred = updatedTransfers.reduce((sum, t) => sum + t.quantity, 0);
       const purchaseOrderQuantity = Math.max(0, item.requestedQuantity - totalTransferred);
-      
+
       return {
         ...item,
         transfers: updatedTransfers,
@@ -321,7 +321,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
 
   const getTotalTransferCost = () => {
     return fulfillmentPlan.reduce((total, item) => {
-      const transferCost = item.transfers.reduce((sum, transfer) => 
+      const transferCost = item.transfers.reduce((sum, transfer) =>
         sum + (transfer.quantity * transfer.unitPrice), 0
       );
       return total + transferCost;
@@ -329,7 +329,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   };
 
   const getTotalPurchaseOrderCost = () => {
-    return fulfillmentPlan.reduce((total, item) => 
+    return fulfillmentPlan.reduce((total, item) =>
       total + (item.purchaseOrderQuantity * item.purchaseOrderPrice), 0
     );
   };
@@ -649,15 +649,15 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
               ) : (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-white">Requested Items</h3>
-                  
+
                   {selectedRequest.items.map((requestedItem) => {
-                    const availableStocks = branchStocks.filter(stock => 
+                    const availableStocks = branchStocks.filter(stock =>
                       stock.originalItemId === requestedItem.itemId
                     );
                     const currentPlan = fulfillmentPlan.find(plan => plan.itemId === requestedItem.itemId);
                     const totalTransferred = currentPlan?.transfers.reduce((sum, t) => sum + t.quantity, 0) || 0;
                     const remainingQuantity = requestedItem.quantity - totalTransferred;
-                    
+
                     return (
                       <Card key={requestedItem.itemId} className="border-2">
                         <CardHeader className="pb-3">
@@ -682,7 +682,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                               {availableStocks.map((stock, index) => {
                                 const currentTransfer = currentPlan?.transfers.find(t => t.fromBranch === stock.branch);
                                 const transferQuantity = currentTransfer?.quantity || 0;
-                                
+
                                 return (
                                   <div key={index} className="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
                                     <Building2 className="h-4 w-4 text-blue-600" />
@@ -700,8 +700,8 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
                                         max={Math.min(stock.availableQuantity, requestedItem.quantity)}
                                         value={transferQuantity}
                                         onChange={(e) => updateTransferQuantity(
-                                          requestedItem.itemId, 
-                                          stock.branch, 
+                                          requestedItem.itemId,
+                                          stock.branch,
                                           parseInt(e.target.value) || 0
                                         )}
                                         className="w-20"

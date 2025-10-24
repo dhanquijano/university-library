@@ -29,6 +29,7 @@ import {
   Activity,
   BarChart2,
   Calendar,
+  DollarSign,
   Download,
   Filter,
   PieChart,
@@ -103,6 +104,7 @@ interface SalesRecord {
   notes?: string;
   receiptUrl?: string;
   verificationStatus?: "pending" | "verified" | "rejected";
+  appointmentType?: "walk-in" | "reservation";
 }
 
 const parsePriceFromServices = (services: string): number => {
@@ -140,10 +142,10 @@ const toCsv = (rows: any[]) => {
 const SalesManagementPage = () => {
   // Admin role checking with stable state
   const { isAdmin, isLoading: adminLoading } = useAdminRole();
-  
+
   // Admin-only role checking for verification tab
   const { isAdminOnly, isLoading: adminOnlyLoading } = useAdminOnlyRole();
-  
+
   // Stable admin state to prevent UI flickering during session refresh
   const [stableIsAdmin, setStableIsAdmin] = useState(false);
   const [stableIsAdminOnly, setStableIsAdminOnly] = useState(false);
@@ -172,11 +174,11 @@ const SalesManagementPage = () => {
 
   // Debug logging
   useEffect(() => {
-    console.log('Admin state:', { 
-      isAdmin, 
-      adminLoading, 
-      stableIsAdmin, 
-      effectiveIsAdmin, 
+    console.log('Admin state:', {
+      isAdmin,
+      adminLoading,
+      stableIsAdmin,
+      effectiveIsAdmin,
       hasInitialized,
       isAdminOnly,
       adminOnlyLoading,
@@ -190,7 +192,7 @@ const SalesManagementPage = () => {
 
   const [rangeType, setRangeType] = useState<
     "daily" | "weekly" | "monthly" | "custom"
-  >("custom");
+  >("daily");
   const [startDate, setStartDate] = useState<string>(
     dayjs().subtract(7, 'days').format("YYYY-MM-DD"),
   );
@@ -209,9 +211,7 @@ const SalesManagementPage = () => {
 
   // Auto-populate preparedBy with logged-in user's name
   useEffect(() => {
-    if (session?.user?.fullName) {
-      setPreparedBy(session.user.fullName);
-    } else if (session?.user?.name) {
+    if (session?.user?.name) {
       setPreparedBy(session.user.name);
     } else if (session?.user?.email) {
       setPreparedBy(session.user.email);
@@ -233,7 +233,7 @@ const SalesManagementPage = () => {
       if (showRefreshIndicator) {
         setIsRefreshing(true);
       }
-      
+
       const res = await fetch("/api/admin/sales", { cache: "no-store" });
       if (!res.ok) return;
       const rows = await res.json();
@@ -344,7 +344,7 @@ const SalesManagementPage = () => {
   const shouldIncludeInRevenue = (record: SalesRecord): boolean => {
     // Cash transactions are always included
     if (record.paymentMethod === "Cash") return true;
-    
+
     // Digital payment methods need verification
     const verifiablePaymentMethods = ["GCash", "Maya", "Bank Transfer"];
     if (verifiablePaymentMethods.includes(record.paymentMethod)) {
@@ -352,7 +352,7 @@ const SalesManagementPage = () => {
       // If no verification status, it's pending, so exclude it
       return (record as any).verificationStatus === "verified";
     }
-    
+
     // Other payment methods (Card, Unknown) are included by default
     return true;
   };
@@ -393,13 +393,28 @@ const SalesManagementPage = () => {
           new Date(`${a.appointmentDate}T${a.appointmentTime}`) < new Date()
             ? "completed"
             : "pending",
+        appointmentType: "reservation" as const, // Appointments are considered reservations
       } as SalesRecord;
     });
     return [...fromAppointments, ...manualSales];
   }, [appointments, manualSales]);
 
-  // Adjust date range when rangeType changes
+  // Track if the user has manually changed the range type to prevent auto-adjustment
+  const [hasUserChangedRange, setHasUserChangedRange] = useState(false);
+
+  // Helper function to handle range type changes
+  const handleRangeTypeChange = (v: string) => {
+    setRangeType(v as "daily" | "weekly" | "monthly" | "custom");
+    setHasUserChangedRange(true);
+  };
+
+  // Adjust date range when rangeType changes (only if user manually changed it)
   useEffect(() => {
+    // Only adjust dates if the user manually changed the range type
+    if (!hasUserChangedRange) {
+      return;
+    }
+
     const now = dayjs();
     if (rangeType === "daily") {
       setStartDate(now.format("YYYY-MM-DD"));
@@ -411,7 +426,7 @@ const SalesManagementPage = () => {
       setStartDate(now.startOf("month").format("YYYY-MM-DD"));
       setEndDate(now.endOf("month").format("YYYY-MM-DD"));
     }
-  }, [rangeType]);
+  }, [rangeType, hasUserChangedRange]);
 
   const filtered = useMemo(() => {
     const start = dayjs(startDate).startOf("day");
@@ -451,6 +466,7 @@ const SalesManagementPage = () => {
       "Time": record.time || "",
       "Branch": record.branch,
       "Barber": record.barber,
+      "Type": record.appointmentType === "walk-in" ? "Walk-in" : "Reservation",
       "Services": record.services,
       "Gross Amount": record.gross,
       "Discount": record.discount,
@@ -623,6 +639,7 @@ const SalesManagementPage = () => {
       "Date": dayjs(record.date).format("YYYY-MM-DD"),
       "Time": record.time || "",
       "Barber": record.barber,
+      "Type": record.appointmentType === "walk-in" ? "Walk-in" : "Reservation",
       "Services": record.services,
       "Gross Amount": record.gross,
       "Discount": record.discount,
@@ -726,6 +743,7 @@ const SalesManagementPage = () => {
     setDailyReportBranch(branch);
   };
   const [txBarber, setTxBarber] = useState<string>("");
+  const [txAppointmentType, setTxAppointmentType] = useState<string>("walk-in");
   const [txServices, setTxServices] = useState<string>("");
   const [txServicesSelected, setTxServicesSelected] = useState<string[]>([]);
   const txComputedGross = useMemo(
@@ -797,7 +815,7 @@ const SalesManagementPage = () => {
         date: txDate,
         time: txTime,
         branch: txBranch,
-        barber: txBarber || "Walk-in",
+        barber: txBarber || `${txAppointmentType === "walk-in" ? "Walk-in" : "Reservation"}`,
         services: txServicesSelected.join(", "),
         gross,
         discount,
@@ -807,6 +825,7 @@ const SalesManagementPage = () => {
         isManual: true,
         notes: txNotes,
         receiptUrl: receiptUrl || null,
+        appointmentType: txAppointmentType as "walk-in" | "reservation",
       };
 
       console.log("Saving transaction with payload:", payload);
@@ -848,6 +867,7 @@ const SalesManagementPage = () => {
     setTxDiscount("0");
     setTxNotes("");
     setTxGcashReceipt(null);
+    setTxAppointmentType("walk-in");
   };
 
   const removeManualTransaction = async (id: string) => {
@@ -864,155 +884,256 @@ const SalesManagementPage = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Sales Management</h1>
-          <p className="text-gray-600">Analyze sales trends and performance</p>
-        </div>
-        <Button onClick={exportCsv} className="flex items-center gap-2">
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
+    <div className="container mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Sales Management</h1>
+        <p className="text-gray-600">Track sales, generate reports, and analyze performance across all branches</p>
       </div>
 
       <BranchManagerInfo />
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-4 w-4" /> Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Select
-              value={rangeType}
-              onValueChange={(v: any) => setRangeType(v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-            <Select
-              value={branchFilter}
-              onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Branches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Branches</SelectItem>
-                {branchesList.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={barberFilter}
-              onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Barbers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Barbers</SelectItem>
-                {barbersList.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Gross</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">
-            ₱{totals.gross.toLocaleString()}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Discounts</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">
-            ₱{totals.discount.toLocaleString()}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Net</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-bold">
-            {isRefreshing ? (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-                Updating...
-              </div>
-            ) : (
-              `₱${totals.net.toLocaleString()}`
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Breakdowns */}
-      <Tabs defaultValue="analytics" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart2 className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart2 className="h-4 w-4" /> Analytics
+            <TrendingUp className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
           <TabsTrigger value="daily-report" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" /> Daily Report
+            <Calendar className="h-4 w-4" />
+            Daily Report
           </TabsTrigger>
           <TabsTrigger value="branches" className="flex items-center gap-2">
-            <BarChart2 className="h-4 w-4" /> Branches
+            <BarChart2 className="h-4 w-4" />
+            Branches
           </TabsTrigger>
           <TabsTrigger value="barbers" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" /> Barbers
-          </TabsTrigger>
-          <TabsTrigger value="services" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" /> Services
+            <Activity className="h-4 w-4" />
+            Barbers
           </TabsTrigger>
           <TabsTrigger value="payments" className="flex items-center gap-2">
-            <PieChart className="h-4 w-4" /> Payments
+            <PieChart className="h-4 w-4" />
+            Payments
           </TabsTrigger>
-          <TabsTrigger
-            value="verification"
-            className="flex items-center gap-2"
-          >
+          <TabsTrigger value="verification" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
             Verification
             {adminLoading && <span className="ml-1 text-xs">...</span>}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="analytics">
+        <TabsContent value="overview" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPIs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Gross</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₱{totals.gross.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  {filtered.length} transactions
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Discounts</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₱{totals.discount.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  Applied discounts
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Net</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {isRefreshing ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                      Updating...
+                    </div>
+                  ) : (
+                    `₱${totals.net.toLocaleString()}`
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Final revenue
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <SalesAnalyticsDashboard
             sales={sales}
             filtered={filtered}
@@ -1022,7 +1143,83 @@ const SalesManagementPage = () => {
           />
         </TabsContent>
 
-        <TabsContent value="branches">
+        <TabsContent value="branches" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Branch Breakdown</CardTitle>
@@ -1056,7 +1253,83 @@ const SalesManagementPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="barbers">
+        <TabsContent value="barbers" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Barber Performance</CardTitle>
@@ -1084,7 +1357,83 @@ const SalesManagementPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="services">
+        <TabsContent value="services" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Service-Based Reporting</CardTitle>
@@ -1114,7 +1463,83 @@ const SalesManagementPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="payments">
+        <TabsContent value="payments" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Payment Methods</CardTitle>
@@ -1142,7 +1567,83 @@ const SalesManagementPage = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="daily-report">
+        <TabsContent value="daily-report" className="space-y-6">
+          {/* Filters */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters & Date Range
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <Select
+                  value={rangeType}
+                  onValueChange={handleRangeTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v) => setBranchFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Branches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Branches</SelectItem>
+                    {branchesList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={barberFilter}
+                  onValueChange={(v) => setBarberFilter(v === "ALL" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Barbers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Barbers</SelectItem>
+                    {barbersList.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Button onClick={exportCsv}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Create Daily Sales Report</CardTitle>
@@ -1166,11 +1667,7 @@ const SalesManagementPage = () => {
                     className="bg-gray-50 cursor-not-allowed"
                   />
                 </div>
-                <div className="flex items-end">
-                  <Button className="w-full" onClick={exportDailyCsv}>
-                    Export CSV
-                  </Button>
-                </div>
+
               </div>
               <div>
                 <Label className="mb-1 block">Notes</Label>
@@ -1183,182 +1680,252 @@ const SalesManagementPage = () => {
               </div>
 
               {/* Manual Transaction Form */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Add Manual Transaction</h3>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                  <div>
-                    <Label className="mb-1 block">Date</Label>
-                    <Input
-                      type="date"
-                      value={txDate}
-                      onChange={(e) => setTxDate(e.target.value)}
-                    />
+              <div className="border rounded-lg p-6 space-y-6">
+                <h3 className="text-lg font-semibold text-gray-900">Add Manual Transaction</h3>
+
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Basic Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Date *</Label>
+                      <Input
+                        type="date"
+                        value={txDate}
+                        onChange={(e) => setTxDate(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Time *</Label>
+                      <Input
+                        type="time"
+                        value={txTime}
+                        onChange={(e) => setTxTime(e.target.value)}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Branch *</Label>
+                      <Select
+                        value={txBranch}
+                        onValueChange={(v) => {
+                          handleTxBranchChange(v);
+                          setSelectedBranchForBarbers(v);
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">Select Branch</SelectItem>
+                          {branchesList.map((b) => (
+                            <SelectItem key={b} value={b}>
+                              {b}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Type *</Label>
+                      <Select
+                        value={txAppointmentType}
+                        onValueChange={(v) => setTxAppointmentType(v)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="walk-in">Walk-in</SelectItem>
+                          <SelectItem value="reservation">Reservation</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Time</Label>
-                    <Input
-                      type="time"
-                      value={txTime}
-                      onChange={(e) => setTxTime(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Branch</Label>
-                    <Select
-                      value={txBranch}
-                      onValueChange={(v) => {
-                        handleTxBranchChange(v);
-                        setSelectedBranchForBarbers(v);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">Select Branch</SelectItem>
-                        {branchesList.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Barber</Label>
-                    <Select
-                      value={txBarber || "NONE"}
-                      onValueChange={(v) => setTxBarber(v === "NONE" ? "" : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Walk-in / None" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE">Walk-in / None</SelectItem>
-                        {barbersForBranch.map((b) => (
-                          <SelectItem key={b} value={b}>
-                            {b}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Gross (auto)</Label>
-                    <Input type="number" min="0" value={txGross} readOnly />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Discount</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={txDiscount}
-                      onChange={(e) => setTxDiscount(e.target.value)}
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Barber</Label>
+                      <Select
+                        value={txBarber}
+                        onValueChange={(v) => setTxBarber(v)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Barber (Optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {barbersForBranch.map((b) => (
+                            <SelectItem key={b} value={b}>
+                              {b}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="mb-1 block">Payment</Label>
-                    <Select
-                      value={txPayment}
-                      onValueChange={(v) => setTxPayment(v as PaymentMethod)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(
-                          [
-                            "Cash",
-                            "GCash",
-                            "Maya",
-                            "Bank Transfer",
-                          ] as PaymentMethod[]
-                        ).map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {(txPayment === "GCash" || txPayment === "Maya" || txPayment === "Bank Transfer") && (
+
+                {/* Services Selection */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Services & Pricing</h4>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div>
-                      <Label className="mb-1 block">
-                        {txPayment === "GCash" && "GCash Receipt *"}
-                        {txPayment === "Maya" && "Maya Receipt *"}
-                        {txPayment === "Bank Transfer" && "Bank Transfer Receipt *"}
-                      </Label>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          setTxGcashReceipt(file || null);
-                        }}
-                        className="cursor-pointer"
-                      />
-                      {txGcashReceipt && (
-                        <div className="mt-2">
-                          <p className="text-xs text-green-600">
-                            ✓ Selected: {txGcashReceipt.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Size: {(txGcashReceipt.size / 1024).toFixed(1)} KB
-                          </p>
+                      <Label className="mb-2 block text-sm font-medium">Services *</Label>
+                      <div className="border rounded-md p-3 max-h-64 overflow-auto bg-gray-50">
+                        {servicesCatalog.map((s: any) => {
+                          const checked = txServicesSelected.includes(s.title);
+                          return (
+                            <label
+                              key={s.id || s.title}
+                              className="flex items-center gap-3 py-2 px-2 hover:bg-white rounded cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                className="accent-blue-600 h-4 w-4"
+                                checked={checked}
+                                onChange={(e) => {
+                                  setTxServicesSelected((prev) => {
+                                    if (e.target.checked)
+                                      return [...prev, s.title];
+                                    return prev.filter((t) => t !== s.title);
+                                  });
+                                }}
+                              />
+                              <span className="flex-1 text-sm font-medium">{s.title}</span>
+                              <span className="text-sm text-green-600 font-semibold">
+                                ₱{(parseFloat(s.price) || s.price).toLocaleString()}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {txServicesSelected.length > 0 && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
+                          <span className="font-medium text-blue-800">Selected:</span>
+                          <div className="text-blue-700 mt-1">{txServicesSelected.join(", ")}</div>
                         </div>
                       )}
-                      {!txGcashReceipt && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Upload receipt image (max 5MB)
-                        </p>
-                      )}
-                      <p className="text-xs text-amber-600 mt-1">
-                        ⚠️ This transaction will require verification before being confirmed.
-                      </p>
                     </div>
-                  )}
 
-                  <div>
-                    <Label className="mb-1 block">Services</Label>
-                    <div className="border rounded-md p-2 max-h-48 overflow-auto">
-                      {servicesCatalog.map((s: any) => {
-                        const checked = txServicesSelected.includes(s.title);
-                        return (
-                          <label
-                            key={s.id || s.title}
-                            className="flex items-center gap-2 py-1 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              className="accent-black"
-                              checked={checked}
-                              onChange={(e) => {
-                                setTxServicesSelected((prev) => {
-                                  if (e.target.checked)
-                                    return [...prev, s.title];
-                                  return prev.filter((t) => t !== s.title);
-                                });
-                              }}
-                            />
-                            <span className="flex-1 text-sm">{s.title}</span>
-                            <span className="text-xs text-gray-500">
-                              ₱
-                              {(
-                                parseFloat(s.price) || s.price
-                              ).toLocaleString()}
-                            </span>
-                          </label>
-                        );
-                      })}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="mb-2 block text-sm font-medium">Gross Amount</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={txGross}
+                            readOnly
+                            className="bg-gray-100 font-semibold text-green-600"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Auto-calculated from services</p>
+                        </div>
+                        <div>
+                          <Label className="mb-2 block text-sm font-medium">Discount</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={txDiscount}
+                            onChange={(e) => setTxDiscount(e.target.value)}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="mb-2 block text-sm font-medium">Net Amount</Label>
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                          <span className="text-lg font-bold text-green-700">
+                            ₱{Math.max(0, (parseFloat(txGross) || 0) - (parseFloat(txDiscount) || 0)).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    {txServicesSelected.length > 0 && (
-                      <div className="text-xs text-gray-600 mt-1">
-                        Selected: {txServicesSelected.join(", ")}
+                  </div>
+                </div>
+
+                {/* Payment Information */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-700 border-b pb-2">Payment Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <Label className="mb-2 block text-sm font-medium">Payment Method *</Label>
+                      <Select
+                        value={txPayment}
+                        onValueChange={(v) => setTxPayment(v as PaymentMethod)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Payment Method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(
+                            [
+                              "Cash",
+                              "GCash",
+                              "Maya",
+                              "Bank Transfer",
+                            ] as PaymentMethod[]
+                          ).map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {(txPayment === "GCash" || txPayment === "Maya" || txPayment === "Bank Transfer") && (
+                      <div>
+                        <Label className="mb-2 block text-sm font-medium">
+                          {txPayment === "GCash" && "GCash Receipt *"}
+                          {txPayment === "Maya" && "Maya Receipt *"}
+                          {txPayment === "Bank Transfer" && "Bank Transfer Receipt *"}
+                        </Label>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            setTxGcashReceipt(file || null);
+                          }}
+                          className="cursor-pointer"
+                        />
+                        {txGcashReceipt && (
+                          <div className="mt-2 p-2 bg-green-50 rounded">
+                            <p className="text-sm text-green-700 font-medium">
+                              ✓ Selected: {txGcashReceipt.name}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Size: {(txGcashReceipt.size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                        )}
+                        {!txGcashReceipt && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Upload receipt image (max 5MB)
+                          </p>
+                        )}
+                        <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                          <p className="text-xs text-amber-700">
+                            ⚠️ This transaction will require verification before being confirmed.
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <Label className="mb-2 block text-sm font-medium">Notes</Label>
+                  <Textarea
+                    value={txNotes}
+                    onChange={(e) => setTxNotes(e.target.value)}
+                    placeholder="Optional notes about this transaction..."
+                    rows={3}
+                    className="resize-none"
+                  />
                 </div>
                 <div>
                   <Label className="mb-1 block">Notes</Label>
@@ -1369,7 +1936,8 @@ const SalesManagementPage = () => {
                     rows={2}
                   />
                 </div>
-                <div className="flex gap-2 justify-end">
+                {/* Action Buttons */}
+                <div className="flex gap-3 justify-end pt-4 border-t">
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -1380,10 +1948,14 @@ const SalesManagementPage = () => {
                       setTxGcashReceipt(null);
                       setTxServicesSelected([]);
                     }}
+                    className="px-6"
                   >
-                    Clear
+                    Clear Form
                   </Button>
-                  <Button onClick={addManualTransaction}>
+                  <Button
+                    onClick={addManualTransaction}
+                    className="px-6 bg-blue-600 hover:bg-blue-700"
+                  >
                     Add Transaction
                   </Button>
                 </div>
@@ -1439,6 +2011,7 @@ const SalesManagementPage = () => {
                       <TableHead>Time</TableHead>
                       <TableHead>Branch</TableHead>
                       <TableHead>Barber</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Services</TableHead>
                       <TableHead>Gross</TableHead>
                       <TableHead>Discount</TableHead>
@@ -1457,6 +2030,11 @@ const SalesManagementPage = () => {
                         <TableCell>{r.time}</TableCell>
                         <TableCell>{r.branch}</TableCell>
                         <TableCell>{r.barber}</TableCell>
+                        <TableCell>
+                          <Badge variant={r.appointmentType === "walk-in" ? "secondary" : "outline"}>
+                            {r.appointmentType === "walk-in" ? "Walk-in" : "Reservation"}
+                          </Badge>
+                        </TableCell>
                         <TableCell
                           className="max-w-[300px] truncate"
                           title={r.services}
@@ -1471,14 +2049,13 @@ const SalesManagementPage = () => {
                             <div className="flex flex-col">
                               <span>{r.paymentMethod}</span>
                               {(r.paymentMethod === "GCash" || r.paymentMethod === "Maya" || r.paymentMethod === "Bank Transfer") && (
-                                <span className={`text-xs ${
-                                  r.verificationStatus === "verified" ? "text-green-600" :
+                                <span className={`text-xs ${r.verificationStatus === "verified" ? "text-green-600" :
                                   r.verificationStatus === "rejected" ? "text-red-600" :
-                                  "text-amber-600"
-                                }`}>
+                                    "text-amber-600"
+                                  }`}>
                                   {r.verificationStatus === "verified" ? "✓ Verified" :
-                                   r.verificationStatus === "rejected" ? "✗ Rejected" :
-                                   "⏳ Pending Verification"}
+                                    r.verificationStatus === "rejected" ? "✗ Rejected" :
+                                      "⏳ Pending Verification"}
                                 </span>
                               )}
                             </div>
@@ -1544,6 +2121,7 @@ const SalesManagementPage = () => {
                 <TableHead>Date</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Barber</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Services</TableHead>
                 <TableHead>Gross</TableHead>
                 <TableHead>Discount</TableHead>
@@ -1558,6 +2136,11 @@ const SalesManagementPage = () => {
                   <TableCell>{dayjs(r.date).format("MMM DD, YYYY")}</TableCell>
                   <TableCell>{r.branch}</TableCell>
                   <TableCell>{r.barber}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.appointmentType === "walk-in" ? "secondary" : "outline"}>
+                      {r.appointmentType === "walk-in" ? "Walk-in" : "Reservation"}
+                    </Badge>
+                  </TableCell>
                   <TableCell
                     className="max-w-[300px] truncate"
                     title={r.services}

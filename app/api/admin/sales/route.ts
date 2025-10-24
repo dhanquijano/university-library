@@ -44,6 +44,24 @@ async function ensureSalesTable() {
   } catch (error) {
     console.log("Error checking/adding receipt_url column:", error);
   }
+
+  // Add appointment_type column if it doesn't exist
+  try {
+    const appointmentTypeCheck = await db.execute(sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'sales' AND column_name = 'appointment_type';
+    `);
+    
+    if (appointmentTypeCheck.rows?.length === 0) {
+      await db.execute(sql`
+        ALTER TABLE sales ADD COLUMN appointment_type text DEFAULT 'reservation';
+      `);
+      console.log("Added appointment_type column to sales table");
+    }
+  } catch (error) {
+    console.log("Error checking/adding appointment_type column:", error);
+  }
 }
 
 type PaymentMethod = "Cash" | "GCash" | "Maya" | "Bank Transfer" | "Card" | "Unknown";
@@ -73,7 +91,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Apply branch filtering for managers
-  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  const branchFilter = getBranchFilterForRole(authResult.user?.role || '', authResult.user?.branch || null);
   if (branchFilter.shouldFilter && branchFilter.branchCondition) {
     clauses.push(sql`branch = ${branchFilter.branchCondition}`);
   }
@@ -82,7 +100,7 @@ export async function GET(req: NextRequest) {
   const query = sql`
     SELECT s.id, s.date, s.time, s.branch, s.barber, s.services, s.gross, s.discount, s.net,
            s.payment_method as "paymentMethod", s.status, s.is_manual as "isManual", s.notes, s.receipt_url as "receiptUrl",
-           tv.status as "verificationStatus"
+           s.appointment_type as "appointmentType", tv.status as "verificationStatus"
     FROM sales s
     LEFT JOIN transaction_verifications tv ON s.id = tv.transaction_id
     ${whereSql}
@@ -119,13 +137,14 @@ export async function POST(req: NextRequest) {
   const isManual: boolean = body.isManual ?? true;
   const notes: string | null = body.notes ?? null;
   const receiptUrl: string | null = body.receiptUrl ?? null;
+  const appointmentType: string = body.appointmentType || 'reservation';
 
   if (!date || !branch) {
     return new NextResponse("Missing required fields", { status: 400 });
   }
 
   // Apply branch filtering for managers - they can only create sales for their branch
-  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  const branchFilter = getBranchFilterForRole(authResult.user?.role || '', authResult.user?.branch || null);
   if (branchFilter.shouldFilter && branchFilter.branchCondition && branch !== branchFilter.branchCondition) {
     return NextResponse.json(
       { error: "You can only create sales records for your assigned branch" },
@@ -134,8 +153,8 @@ export async function POST(req: NextRequest) {
   }
 
   const insert = sql`
-    INSERT INTO sales (id, date, time, branch, barber, services, gross, discount, net, payment_method, status, is_manual, notes, receipt_url)
-    VALUES (${id}, ${date}, ${time}, ${branch}, ${barber}, ${services}, ${gross}, ${discount}, ${net}, ${paymentMethod}, ${status}, ${isManual}, ${notes}, ${receiptUrl})
+    INSERT INTO sales (id, date, time, branch, barber, services, gross, discount, net, payment_method, status, is_manual, notes, receipt_url, appointment_type)
+    VALUES (${id}, ${date}, ${time}, ${branch}, ${barber}, ${services}, ${gross}, ${discount}, ${net}, ${paymentMethod}, ${status}, ${isManual}, ${notes}, ${receiptUrl}, ${appointmentType})
     ON CONFLICT (id) DO UPDATE SET
       date = EXCLUDED.date,
       time = EXCLUDED.time,
@@ -149,8 +168,9 @@ export async function POST(req: NextRequest) {
       status = EXCLUDED.status,
       is_manual = EXCLUDED.is_manual,
       notes = EXCLUDED.notes,
-      receipt_url = EXCLUDED.receipt_url
-    RETURNING id, date, time, branch, barber, services, gross, discount, net, payment_method as "paymentMethod", status, is_manual as "isManual", notes, receipt_url as "receiptUrl";
+      receipt_url = EXCLUDED.receipt_url,
+      appointment_type = EXCLUDED.appointment_type
+    RETURNING id, date, time, branch, barber, services, gross, discount, net, payment_method as "paymentMethod", status, is_manual as "isManual", notes, receipt_url as "receiptUrl", appointment_type as "appointmentType";
   `;
   const result = await db.execute(insert);
   return NextResponse.json(result.rows?.[0] ?? null, { status: 201 });
@@ -172,7 +192,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) return new NextResponse("Missing id", { status: 400 });
 
   // Apply branch filtering for managers - they can only delete sales from their branch
-  const branchFilter = getBranchFilterForRole(authResult.user.role, authResult.user.branch);
+  const branchFilter = getBranchFilterForRole(authResult.user?.role || '', authResult.user?.branch || null);
   if (branchFilter.shouldFilter && branchFilter.branchCondition) {
     // First check if the record belongs to their branch
     const checkQuery = sql`SELECT branch FROM sales WHERE id = ${id}`;
