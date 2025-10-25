@@ -35,6 +35,8 @@ import {
   PieChart,
   TrendingUp,
   Shield,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import VerificationTab from "@/components/VerificationTab";
 import SalesAnalyticsDashboard from "@/components/admin/sales/SalesAnalyticsDashboard";
@@ -226,6 +228,20 @@ const SalesManagementPage = () => {
   const [servicesCatalog, setServicesCatalog] = useState<any[]>([]);
   const [manualSales, setManualSales] = useState<SalesRecord[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Pagination state for different tables
+  const [branchPage, setBranchPage] = useState(1);
+  const [branchItemsPerPage, setBranchItemsPerPage] = useState(10);
+  const [barberPage, setBarberPage] = useState(1);
+  const [barberItemsPerPage, setBarberItemsPerPage] = useState(10);
+  const [servicePage, setServicePage] = useState(1);
+  const [serviceItemsPerPage, setServiceItemsPerPage] = useState(10);
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentItemsPerPage, setPaymentItemsPerPage] = useState(10);
+  const [dailySalesPage, setDailySalesPage] = useState(1);
+  const [dailySalesItemsPerPage, setDailySalesItemsPerPage] = useState(10);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [transactionsItemsPerPage, setTransactionsItemsPerPage] = useState(10);
 
   // Load persisted manual transactions from backend
   const loadManual = useCallback(async (showRefreshIndicator = false) => {
@@ -555,6 +571,16 @@ const SalesManagementPage = () => {
     return grouped;
   }, [filtered]);
 
+  // Paginated branch breakdown
+  const paginatedBranchBreakdown = useMemo(() => {
+    const entries = Object.entries(branchBreakdown);
+    const startIndex = (branchPage - 1) * branchItemsPerPage;
+    const endIndex = startIndex + branchItemsPerPage;
+    return entries.slice(startIndex, endIndex);
+  }, [branchBreakdown, branchPage, branchItemsPerPage]);
+
+  const branchTotalPages = Math.ceil(Object.keys(branchBreakdown).length / branchItemsPerPage);
+
   const barberBreakdown = useMemo(() => {
     const grouped: Record<string, { revenue: number; clients: number }> = {};
     filtered.forEach((r) => {
@@ -564,6 +590,16 @@ const SalesManagementPage = () => {
     });
     return grouped;
   }, [filtered]);
+
+  // Paginated barber breakdown
+  const paginatedBarberBreakdown = useMemo(() => {
+    const entries = Object.entries(barberBreakdown);
+    const startIndex = (barberPage - 1) * barberItemsPerPage;
+    const endIndex = startIndex + barberItemsPerPage;
+    return entries.slice(startIndex, endIndex);
+  }, [barberBreakdown, barberPage, barberItemsPerPage]);
+
+  const barberTotalPages = Math.ceil(Object.keys(barberBreakdown).length / barberItemsPerPage);
 
   const serviceBreakdown = useMemo(() => {
     const grouped: Record<string, number> = {};
@@ -587,6 +623,16 @@ const SalesManagementPage = () => {
     return grouped;
   }, [filtered]);
 
+  // Paginated service breakdown
+  const paginatedServiceBreakdown = useMemo(() => {
+    const entries = Object.entries(serviceBreakdown);
+    const startIndex = (servicePage - 1) * serviceItemsPerPage;
+    const endIndex = startIndex + serviceItemsPerPage;
+    return entries.slice(startIndex, endIndex);
+  }, [serviceBreakdown, servicePage, serviceItemsPerPage]);
+
+  const serviceTotalPages = Math.ceil(Object.keys(serviceBreakdown).length / serviceItemsPerPage);
+
   const paymentBreakdown = useMemo(() => {
     const grouped: Record<string, number> = {};
     filtered.forEach((r) => {
@@ -594,6 +640,16 @@ const SalesManagementPage = () => {
     });
     return grouped;
   }, [filtered]);
+
+  // Paginated payment breakdown
+  const paginatedPaymentBreakdown = useMemo(() => {
+    const entries = Object.entries(paymentBreakdown);
+    const startIndex = (paymentPage - 1) * paymentItemsPerPage;
+    const endIndex = startIndex + paymentItemsPerPage;
+    return entries.slice(startIndex, endIndex);
+  }, [paymentBreakdown, paymentPage, paymentItemsPerPage]);
+
+  const paymentTotalPages = Math.ceil(Object.keys(paymentBreakdown).length / paymentItemsPerPage);
 
   // Daily report calculations
   const daySales = useMemo(() => {
@@ -607,6 +663,105 @@ const SalesManagementPage = () => {
       return isSameDay && byBranch && includeInRevenue;
     });
   }, [sales, dailyReportDate, dailyReportBranch, branchOptions]);
+
+  // Paginated daily sales
+  const paginatedDaySales = useMemo(() => {
+    const startIndex = (dailySalesPage - 1) * dailySalesItemsPerPage;
+    const endIndex = startIndex + dailySalesItemsPerPage;
+    return daySales.slice(startIndex, endIndex);
+  }, [daySales, dailySalesPage, dailySalesItemsPerPage]);
+
+  const dailySalesTotalPages = Math.ceil(daySales.length / dailySalesItemsPerPage);
+
+  // Paginated main transactions
+  const paginatedTransactions = useMemo(() => {
+    const startIndex = (transactionsPage - 1) * transactionsItemsPerPage;
+    const endIndex = startIndex + transactionsItemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, transactionsPage, transactionsItemsPerPage]);
+
+  const transactionsTotalPages = Math.ceil(filtered.length / transactionsItemsPerPage);
+
+  // Pagination controls component
+  const PaginationControls = ({
+    currentPage,
+    totalPages,
+    itemsPerPage,
+    totalItems,
+    onPageChange,
+    onItemsPerPageChange,
+    itemName = "items"
+  }: {
+    currentPage: number;
+    totalPages: number;
+    itemsPerPage: number;
+    totalItems: number;
+    onPageChange: (page: number) => void;
+    onItemsPerPageChange: (items: number) => void;
+    itemName?: string;
+  }) => {
+    if (totalPages <= 1) return null;
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+    return (
+      <div className="flex items-center justify-between px-2 py-4">
+        <div className="flex items-center space-x-2">
+          <p className="text-sm text-gray-700">
+            Showing {startIndex + 1} to {endIndex} of {totalItems} {itemName}
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2">
+            <Label className="text-sm">Rows per page:</Label>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => {
+                onItemsPerPageChange(Number(value));
+                onPageChange(1);
+              }}
+            >
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <span className="text-sm px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const dayTotals = useMemo(() => {
     const gross = daySales.reduce((sum, r) => sum + r.gross, 0);
@@ -1236,7 +1391,7 @@ const SalesManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(branchBreakdown).map(([branch, v]) => (
+                  {paginatedBranchBreakdown.map(([branch, v]) => (
                     <TableRow key={branch}>
                       <TableCell>{branch}</TableCell>
                       <TableCell>{(v as any).transactions}</TableCell>
@@ -1249,6 +1404,16 @@ const SalesManagementPage = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              <PaginationControls
+                currentPage={branchPage}
+                totalPages={branchTotalPages}
+                itemsPerPage={branchItemsPerPage}
+                totalItems={Object.keys(branchBreakdown).length}
+                onPageChange={setBranchPage}
+                onItemsPerPageChange={setBranchItemsPerPage}
+                itemName="branches"
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1344,7 +1509,7 @@ const SalesManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(barberBreakdown).map(([barber, v]) => (
+                  {paginatedBarberBreakdown.map(([barber, v]) => (
                     <TableRow key={barber}>
                       <TableCell>{barber}</TableCell>
                       <TableCell>{v.clients}</TableCell>
@@ -1353,6 +1518,16 @@ const SalesManagementPage = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              <PaginationControls
+                currentPage={barberPage}
+                totalPages={barberTotalPages}
+                itemsPerPage={barberItemsPerPage}
+                totalItems={Object.keys(barberBreakdown).length}
+                onPageChange={setBarberPage}
+                onItemsPerPageChange={setBarberItemsPerPage}
+                itemName="barbers"
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1447,7 +1622,7 @@ const SalesManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(serviceBreakdown).map(
+                  {paginatedServiceBreakdown.map(
                     ([service, revenue]) => (
                       <TableRow key={service}>
                         <TableCell>{service}</TableCell>
@@ -1459,6 +1634,16 @@ const SalesManagementPage = () => {
                   )}
                 </TableBody>
               </Table>
+
+              <PaginationControls
+                currentPage={servicePage}
+                totalPages={serviceTotalPages}
+                itemsPerPage={serviceItemsPerPage}
+                totalItems={Object.keys(serviceBreakdown).length}
+                onPageChange={setServicePage}
+                onItemsPerPageChange={setServiceItemsPerPage}
+                itemName="services"
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1553,7 +1738,7 @@ const SalesManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(paymentBreakdown).map(([method, revenue]) => (
+                  {paginatedPaymentBreakdown.map(([method, revenue]) => (
                     <TableRow key={method}>
                       <TableCell>{method}</TableCell>
                       <TableCell>
@@ -1563,6 +1748,16 @@ const SalesManagementPage = () => {
                   ))}
                 </TableBody>
               </Table>
+
+              <PaginationControls
+                currentPage={paymentPage}
+                totalPages={paymentTotalPages}
+                itemsPerPage={paymentItemsPerPage}
+                totalItems={Object.keys(paymentBreakdown).length}
+                onPageChange={setPaymentPage}
+                onItemsPerPageChange={setPaymentItemsPerPage}
+                itemName="payment methods"
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -2022,7 +2217,7 @@ const SalesManagementPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {daySales.map((r) => (
+                    {paginatedDaySales.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>
                           {dayjs(r.date).format("MMM DD, YYYY")}
@@ -2094,6 +2289,16 @@ const SalesManagementPage = () => {
                     ))}
                   </TableBody>
                 </Table>
+
+                <PaginationControls
+                  currentPage={dailySalesPage}
+                  totalPages={dailySalesTotalPages}
+                  itemsPerPage={dailySalesItemsPerPage}
+                  totalItems={daySales.length}
+                  onPageChange={setDailySalesPage}
+                  onItemsPerPageChange={setDailySalesItemsPerPage}
+                  itemName="transactions"
+                />
               </div>
             </CardContent>
           </Card>
@@ -2131,7 +2336,7 @@ const SalesManagementPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r) => (
+              {paginatedTransactions.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{dayjs(r.date).format("MMM DD, YYYY")}</TableCell>
                   <TableCell>{r.branch}</TableCell>
@@ -2170,6 +2375,16 @@ const SalesManagementPage = () => {
               ))}
             </TableBody>
           </Table>
+
+          <PaginationControls
+            currentPage={transactionsPage}
+            totalPages={transactionsTotalPages}
+            itemsPerPage={transactionsItemsPerPage}
+            totalItems={filtered.length}
+            onPageChange={setTransactionsPage}
+            onItemsPerPageChange={setTransactionsItemsPerPage}
+            itemName="transactions"
+          />
         </CardContent>
       </Card>
     </div>

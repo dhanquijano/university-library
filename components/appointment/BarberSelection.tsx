@@ -78,10 +78,10 @@ const BarberSelection = ({
 
     checkAllBarbersAvailability();
   }, [selectedBranch, availableBarbers]);
-  const renderBarberInfo = (barber: Barber | "no_preference") => {
+  const renderBarberInfo = (barber: Barber | "no_preference", isInDropdown = false) => {
     if (barber === "no_preference") {
       return (
-        <div className="flex flex-col w-full items-center text-center">
+        <div className={`flex flex-col w-full ${isInDropdown ? 'items-start text-left' : 'items-center text-center'} py-1`}>
           <span className="font-medium">No Preference</span>
           <span className="text-sm text-gray-500">
             We'll assign a barber for you
@@ -93,8 +93,8 @@ const BarberSelection = ({
     const hasAvailability = barberAvailability[barber.id] ?? true;
 
     return (
-      <div className="flex flex-col w-full items-center text-center">
-        <div className="flex items-center justify-center gap-2">
+      <div className={`flex flex-col w-full ${isInDropdown ? 'items-start text-left' : 'items-center text-center'} py-1`}>
+        <div className={`flex items-center gap-2 ${isInDropdown ? 'justify-start' : 'justify-center'}`}>
           <span className={`font-medium ${!hasAvailability ? 'text-gray-400' : ''}`}>
             {barber.name}
           </span>
@@ -111,7 +111,7 @@ const BarberSelection = ({
         <span className={`text-sm ${!hasAvailability ? 'text-gray-400' : 'text-gray-500'}`}>
           {barber.experience} experience
         </span>
-        <div className="flex flex-wrap gap-1 mt-1 justify-center">
+        <div className={`flex flex-wrap gap-1 mt-1 ${isInDropdown ? 'justify-start' : 'justify-center'}`}>
           {(Array.isArray(barber.specialties) ? barber.specialties : []).map((specialty: string) => (
             <Badge
               key={specialty}
@@ -161,22 +161,22 @@ const BarberSelection = ({
                 value={field.value}
               >
                 <FormControl>
-                  <SelectTrigger className="text-center items-center min-h-[4.5rem] py-2">
+                  <SelectTrigger className="flex items-center justify-center min-h-[4.5rem] py-3 px-4">
                     <SelectValue placeholder="Choose a barber">
                       {field.value === "no_preference"
-                        ? renderBarberInfo("no_preference")
+                        ? renderBarberInfo("no_preference", false)
                         : selectedBarber &&
-                          renderBarberInfo(selectedBarber)}
+                          renderBarberInfo(selectedBarber, false)}
                     </SelectValue>
                   </SelectTrigger>
                 </FormControl>
 
-                <SelectContent>
+                <SelectContent className="max-w-md">
                   <SelectItem
                     value="no_preference"
-                    className="!w-full items-start text-left py-2"
+                    className="w-full cursor-pointer py-3 px-4 focus:bg-gray-50"
                   >
-                    {renderBarberInfo("no_preference")}
+                    {renderBarberInfo("no_preference", true)}
                   </SelectItem>
 
                   {availableBarbers.length > 0 ? (
@@ -184,13 +184,14 @@ const BarberSelection = ({
                       <SelectItem
                         key={barber.id}
                         value={barber.id}
-                        className="!w-full items-start text-left py-2"
+                        className="w-full cursor-pointer py-3 px-4 focus:bg-gray-50"
+                        disabled={!barberAvailability[barber.id]}
                       >
-                        {renderBarberInfo(barber)}
+                        {renderBarberInfo(barber, true)}
                       </SelectItem>
                     ))
                   ) : (
-                    <div className="p-2 text-sm text-gray-500">
+                    <div className="p-4 text-sm text-gray-500 text-center">
                       No barbers available at this branch
                     </div>
                   )}

@@ -597,7 +597,8 @@ const InventoryPage = () => {
         body: JSON.stringify({
           ...transaction,
           userId: user?.id || 'unknown-user',
-          branch: user?.branch || 'Unknown Branch',
+          // Use the branch from the transaction form, fallback to user's branch if not provided
+          branch: transaction.branch || user?.branch || 'Unknown Branch',
         }),
       });
 

@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
           supplier: order.supplier,
           status: order.status as 'requested' | 'ordered' | 'received' | 'cancelled',
           totalAmount: parseFloat(order.totalAmount),
-          requestedBy: 'User', // TODO: Look up user name separately if needed
+          requestedBy: order.requestedBy, // Use the actual requestedBy value from database
           requestedById: order.requestedBy,
           requestedDate: order.requestedDate?.toISOString() || new Date().toISOString(),
           orderedDate: order.orderedDate?.toISOString(),

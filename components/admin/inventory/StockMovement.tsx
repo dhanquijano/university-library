@@ -37,7 +37,9 @@ import {
   Package,
   User,
   Calendar,
-  FileText
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { useAdminRole, useBranchMap } from "@/lib/admin-utils";
 
@@ -53,7 +55,7 @@ interface StockTransaction {
   notes: string;
   timestamp: string;
   reason: string;
-  branch?: string;
+  branch: string; // Make branch required
 }
 
 interface StockMovementProps {
@@ -85,7 +87,12 @@ const StockMovement = ({
     quantity: 0,
     notes: '',
     reason: '',
+    branch: '', // Add branch selection
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Filter transactions based on selected branches and user role
   // For managers, transactions are already filtered by their branch in the parent component
@@ -95,6 +102,20 @@ const StockMovement = ({
       transaction.branch && selectedBranches.includes(transaction.branch)
     )
     : transactions;
+
+  // Calculate pagination
+  const totalTransactions = filteredTransactions.length;
+  const totalPages = Math.ceil(totalTransactions / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  // Reset to page 1 if current page is beyond total pages
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
 
   const getTransactionIcon = (type: string) => {
     return type === 'in' ? (
@@ -114,7 +135,7 @@ const StockMovement = ({
 
   const handleAddTransaction = () => {
     const selectedItem = items.find(item => item.id === newTransaction.itemId);
-    if (!selectedItem) return;
+    if (!selectedItem || !newTransaction.branch) return;
 
     // Get the current user's name for the transaction
     const currentUser = user?.name || user?.email || 'Unknown User';
@@ -131,6 +152,7 @@ const StockMovement = ({
       user: currentUser,
       notes: newTransaction.notes,
       reason: newTransaction.reason,
+      branch: newTransaction.branch, // Include branch in transaction
     };
 
     onAddTransaction(transaction);
@@ -140,6 +162,7 @@ const StockMovement = ({
       quantity: 0,
       notes: '',
       reason: '',
+      branch: '',
     });
     setIsAddDialogOpen(false);
   };
@@ -201,17 +224,45 @@ const StockMovement = ({
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1">
-                <Label htmlFor="item">Item</Label>
-                <Select value={newTransaction.itemId} onValueChange={(value) => setNewTransaction({ ...newTransaction, itemId: value })}>
+                <Label htmlFor="branch">Branch</Label>
+                <Select 
+                  value={newTransaction.branch} 
+                  onValueChange={(value) => setNewTransaction({ 
+                    ...newTransaction, 
+                    branch: value,
+                    itemId: '' // Reset item selection when branch changes
+                  })}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select item" />
+                    <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {items.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.name} (Current: {item.quantity})
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="item">Item</Label>
+                <Select 
+                  value={newTransaction.itemId} 
+                  onValueChange={(value) => setNewTransaction({ ...newTransaction, itemId: value })}
+                  disabled={!newTransaction.branch}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={!newTransaction.branch ? "Select branch first" : "Select item"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {items
+                      .filter(item => !newTransaction.branch || item.branch === newTransaction.branch)
+                      .map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} (Current: {item.quantity})
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -268,7 +319,12 @@ const StockMovement = ({
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddTransaction}>Add Transaction</Button>
+              <Button 
+                onClick={handleAddTransaction}
+                disabled={!newTransaction.branch || !newTransaction.itemId || !newTransaction.quantity || !newTransaction.reason}
+              >
+                Add Transaction
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -287,6 +343,7 @@ const StockMovement = ({
             <TableHeader>
               <TableRow>
                 <TableHead>Item</TableHead>
+                <TableHead>Branch</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Quantity</TableHead>
                 <TableHead>Previous</TableHead>
@@ -298,10 +355,13 @@ const StockMovement = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTransactions.map((transaction) => (
+              {paginatedTransactions.map((transaction) => (
                 <TableRow key={transaction.id}>
                   <TableCell>
                     <div className="font-medium">{transaction.itemName}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{transaction.branch}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -348,6 +408,64 @@ const StockMovement = ({
               ))}
             </TableBody>
           </Table>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalTransactions)} of {totalTransactions} transactions
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Label className="text-sm">Rows per page:</Label>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <span className="text-sm px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

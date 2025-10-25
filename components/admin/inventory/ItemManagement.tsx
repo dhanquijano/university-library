@@ -37,7 +37,9 @@ import {
   Package,
   AlertTriangle,
   Calendar,
-  Coins
+  Coins,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface InventoryItem {
@@ -82,6 +84,11 @@ const ItemManagement = ({
   const isManager = userRole === "MANAGER";
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Helper function to calculate correct status based on quantity and reorder threshold
   const calculateItemStatus = (quantity: number, reorderThreshold: number) => {
@@ -115,6 +122,23 @@ const ItemManagement = ({
   const filteredItems = selectedBranches.length > 0
     ? items.filter(item => selectedBranches.includes(item.branch))
     : items;
+
+  // Calculate pagination
+  const totalItems = filteredItems.length;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+  // Update total pages when filtered items change
+  useEffect(() => {
+    const newTotalPages = Math.ceil(totalItems / itemsPerPage);
+    setTotalPages(newTotalPages);
+    
+    // Reset to page 1 if current page is beyond total pages
+    if (currentPage > newTotalPages && newTotalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalItems, itemsPerPage, currentPage]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -358,7 +382,7 @@ const ItemManagement = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredItems.map((item) => (
+              {paginatedItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>
@@ -412,6 +436,64 @@ const ItemManagement = ({
               ))}
             </TableBody>
           </Table>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} items
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Label className="text-sm">Rows per page:</Label>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <span className="text-sm px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

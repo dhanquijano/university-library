@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useBranchMap, useAdminRole } from "@/lib/admin-utils";
 import {
   Dialog,
@@ -35,7 +42,9 @@ import {
   DollarSign,
   ArrowRightLeft,
   ShoppingCart,
-  Building2
+  Building2,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import BranchFilter from "./BranchFilter";
@@ -113,6 +122,10 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   const [approvalNotes, setApprovalNotes] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   // Enhanced approval state
   const [branchStocks, setBranchStocks] = useState<BranchStock[]>([]);
   const [fulfillmentPlan, setFulfillmentPlan] = useState<FulfillmentPlan[]>([]);
@@ -126,6 +139,20 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
   // Separate requests by status
   const pendingRequests = filteredRequests.filter(r => r.status === "pending");
   const reviewedRequests = filteredRequests.filter(r => r.status !== "pending");
+
+  // Calculate pagination for pending requests
+  const totalPendingRequests = pendingRequests.length;
+  const totalPages = Math.ceil(totalPendingRequests / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedPendingRequests = pendingRequests.slice(startIndex, endIndex);
+
+  // Reset to page 1 if current page is beyond total pages
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
 
   // Fetch available stock from other branches for the requested items
   const fetchBranchStocks = async (requestItems: RequestItem[], targetBranch: string) => {
@@ -383,7 +410,7 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {pendingRequests.map((request) => (
+              {paginatedPendingRequests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">{request.requestNumber}</TableCell>
                   <TableCell>{getPriorityBadge(request)}</TableCell>
@@ -440,6 +467,65 @@ const AdminApproval: React.FC<AdminApprovalProps> = ({
               ))}
             </TableBody>
           </Table>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalPendingRequests)} of {totalPendingRequests} pending requests
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Label className="text-sm">Rows per page:</Label>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <span className="text-sm px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {pendingRequests.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               No pending requests to review.

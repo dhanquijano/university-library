@@ -40,7 +40,9 @@ import {
   AlertTriangle,
   Coins,
   Calendar,
-  User
+  User,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 interface PurchaseOrderItem {
@@ -96,11 +98,32 @@ const PurchaseOrders = ({
     notes: '',
     branch: '',
   });
+  
+  // State for branch selection in the create order form
+  const [selectedOrderBranch, setSelectedOrderBranch] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Filter orders based on selected branches
   const filteredOrders = selectedBranches.length > 0 
     ? orders.filter(order => selectedBranches.includes(order.branch))
     : orders;
+
+  // Calculate pagination
+  const totalOrders = filteredOrders.length;
+  const totalPages = Math.ceil(totalOrders / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Reset to page 1 if current page is beyond total pages
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -142,11 +165,12 @@ const PurchaseOrders = ({
       totalAmount: newOrder.items.reduce((sum, item) => sum + item.totalPrice, 0),
       requestedBy: currentUser,
       notes: newOrder.notes,
-      branch: newOrder.branch,
+      branch: selectedOrderBranch,
       status: 'requested' as const,
     };
 
     onCreateOrder(order);
+    setSelectedOrderBranch('');
     setNewOrder({
       supplier: '',
       items: [],
@@ -158,7 +182,7 @@ const PurchaseOrders = ({
 
   const addItemToOrder = (itemId: string) => {
     const item = lowStockItems.find(i => i.id === itemId);
-    if (!item) return;
+    if (!item || !selectedOrderBranch) return;
 
     const existingItem = newOrder.items.find(i => i.itemId === itemId);
     if (existingItem) {
@@ -171,34 +195,21 @@ const PurchaseOrders = ({
         )
       });
     } else {
-      // Check if the new item has the same supplier and branch as existing items
-      if (newOrder.items.length > 0) {
-        const firstItem = lowStockItems.find(i => i.id === newOrder.items[0].itemId);
-        if (firstItem && (firstItem.supplier !== item.supplier || firstItem.branch !== item.branch)) {
-          alert(`Cannot add ${item.name} - it has a different supplier (${item.supplier}) or branch (${item.branch}) than the items already in the order. Please create a separate order for items with different suppliers or branches.`);
-          return;
-        }
-      }
-
       const newItem: PurchaseOrderItem = {
         itemId: item.id,
         itemName: item.name,
         quantity: 1,
-        unitPrice: item.unitPrice || 0, // Use the inventory item's unit price
-        totalPrice: (item.unitPrice || 0) * 1, // Calculate total price
+        unitPrice: item.unitPrice || 0,
+        totalPrice: (item.unitPrice || 0) * 1,
       };
       
-      // Auto-set supplier and branch based on the first item added
+      // Set supplier automatically based on the item (but don't display it)
       const updatedOrder = {
         ...newOrder,
-        items: [...newOrder.items, newItem]
+        items: [...newOrder.items, newItem],
+        supplier: item.supplier, // Auto-set supplier from item
+        branch: selectedOrderBranch, // Use selected branch
       };
-      
-      // If this is the first item, set supplier and branch automatically
-      if (newOrder.items.length === 0) {
-        updatedOrder.supplier = item.supplier;
-        updatedOrder.branch = item.branch;
-      }
       
       setNewOrder(updatedOrder);
     }
@@ -222,16 +233,7 @@ const PurchaseOrders = ({
     });
   };
 
-  const updateItemPrice = (itemId: string, unitPrice: number) => {
-    setNewOrder({
-      ...newOrder,
-      items: newOrder.items.map(i => 
-        i.itemId === itemId 
-          ? { ...i, unitPrice, totalPrice: i.quantity * unitPrice }
-          : i
-      )
-    });
-  };
+
 
   return (
     <div className="space-y-6">
@@ -265,62 +267,83 @@ const PurchaseOrders = ({
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-                             <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-1">
-                   <Label htmlFor="supplier">Supplier</Label>
-                   <div className="p-3 bg-gray-100 rounded-md">
-                     <span className="text-sm font-medium">
-                       {newOrder.supplier || "Select items to auto-set supplier"}
-                     </span>
-                   </div>
-                 </div>
-                 <div className="space-y-1">
-                   <Label htmlFor="branch">Branch</Label>
-                   <div className="p-3 bg-gray-100 rounded-md">
-                     <span className="text-sm font-medium">
-                       {newOrder.branch || "Select items to auto-set branch"}
-                     </span>
-                   </div>
-                 </div>
-               </div>
+              <div className="space-y-1">
+                <Label htmlFor="branch">Branch *</Label>
+                <Select 
+                  value={selectedOrderBranch} 
+                  onValueChange={(value) => {
+                    setSelectedOrderBranch(value);
+                    // Reset order when branch changes
+                    setNewOrder({
+                      supplier: '',
+                      items: [],
+                      notes: newOrder.notes,
+                      branch: value,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch for this order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               
                              {/* Low Stock Items */}
-               <div>
-                 <Label>Add Items from Low Stock</Label>
-                 <p className="text-sm text-gray-500 mb-2">
-                   Select items to automatically set supplier and branch. All items in an order must have the same supplier and branch.
-                 </p>
-                <div className="mt-2 space-y-2">
-                                     {lowStockItems.map((item) => {
-                     const isCompatible = newOrder.items.length === 0 || 
-                       (newOrder.supplier === item.supplier && newOrder.branch === item.branch);
-                     const isAlreadyAdded = newOrder.items.some(i => i.itemId === item.id);
-                     
-                     return (
-                       <div key={item.id} className={`flex items-center justify-between p-2 border rounded ${
-                         !isCompatible ? 'opacity-50 bg-gray-50' : ''
-                       }`}>
-                         <div>
-                           <div className="font-medium">{item.name}</div>
-                           <div className="text-sm text-gray-500">
-                             Current: {item.currentQuantity} | Threshold: {item.reorderThreshold}
-                           </div>
-                                                       <div className="text-xs text-gray-400">
-                              Supplier: {item.supplier} | Branch: {item.branch} | Unit Price: ₱{item.unitPrice.toLocaleString()}
+              {selectedOrderBranch && (
+                <div>
+                  <Label>Add Items from Low Stock</Label>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Items available for the selected branch ({selectedOrderBranch})
+                  </p>
+                  <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+                    {lowStockItems
+                      .filter(item => item.branch === selectedOrderBranch)
+                      .map((item) => {
+                        const isAlreadyAdded = newOrder.items.some(i => i.itemId === item.id);
+                        
+                        return (
+                          <div key={item.id} className="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                            <div className="flex-1">
+                              <div className="font-medium">{item.name}</div>
+                              <div className="text-sm text-gray-500">
+                                Current: {item.currentQuantity} | Threshold: {item.reorderThreshold}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                Supplier: {item.supplier} | Unit Price: ₱{item.unitPrice.toLocaleString()}
+                              </div>
                             </div>
-                         </div>
-                         <Button
-                           size="sm"
-                           onClick={() => addItemToOrder(item.id)}
-                           disabled={isAlreadyAdded || !isCompatible}
-                         >
-                           {isAlreadyAdded ? 'Added' : isCompatible ? 'Add' : 'Incompatible'}
-                         </Button>
-                       </div>
-                     );
-                   })}
+                            <Button
+                              size="sm"
+                              onClick={() => addItemToOrder(item.id)}
+                              disabled={isAlreadyAdded}
+                              variant={isAlreadyAdded ? "secondary" : "default"}
+                            >
+                              {isAlreadyAdded ? 'Added' : 'Add'}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    {lowStockItems.filter(item => item.branch === selectedOrderBranch).length === 0 && (
+                      <div className="text-center py-4 text-gray-500">
+                        No low stock items found for {selectedOrderBranch}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {!selectedOrderBranch && (
+                <div className="text-center py-8 text-gray-500">
+                  Please select a branch to view available items
+                </div>
+              )}
 
               {/* Selected Items */}
               {newOrder.items.length > 0 && (
@@ -345,13 +368,9 @@ const PurchaseOrders = ({
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-xs">Price:</Label>
-                          <Input
-                            type="number"
-                            value={item.unitPrice}
-                            onChange={(e) => updateItemPrice(item.itemId, parseFloat(e.target.value) || 0)}
-                            className="w-20"
-                            min="0"
-                          />
+                          <div className="w-20 px-3 py-2 bg-gray-100 border rounded text-sm font-medium">
+                            ₱{item.unitPrice.toLocaleString()}
+                          </div>
                         </div>
                         <div className="text-sm font-medium">
                           ₱{(item.quantity * item.unitPrice).toLocaleString()}
@@ -382,15 +401,25 @@ const PurchaseOrders = ({
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsCreateDialogOpen(false);
+                // Reset form when closing
+                setSelectedOrderBranch('');
+                setNewOrder({
+                  supplier: '',
+                  items: [],
+                  notes: '',
+                  branch: '',
+                });
+              }}>
                 Cancel
               </Button>
-                             <Button 
-                 onClick={handleCreateOrder} 
-                 disabled={newOrder.items.length === 0 || !newOrder.supplier || !newOrder.branch}
-               >
-                 Create Order
-               </Button>
+              <Button 
+                onClick={handleCreateOrder} 
+                disabled={newOrder.items.length === 0 || !selectedOrderBranch}
+              >
+                Create Order
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -412,6 +441,7 @@ const PurchaseOrders = ({
                 <TableHead>Supplier</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Items</TableHead>
+                <TableHead>Quantity</TableHead>
                 <TableHead>Total Amount</TableHead>
                 <TableHead>Branch</TableHead>
                 <TableHead>Requested By</TableHead>
@@ -420,7 +450,7 @@ const PurchaseOrders = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrders.map((order) => (
+              {paginatedOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-mono">{order.orderNumber}</TableCell>
                   <TableCell>{order.supplier}</TableCell>
@@ -431,8 +461,30 @@ const PurchaseOrders = ({
                     </div>
                   </TableCell>
                   <TableCell>
+                    <div className="text-sm max-w-48">
+                      {order.items.length === 1 ? (
+                        <span className="font-medium">{order.items[0].itemName}</span>
+                      ) : order.items.length <= 3 ? (
+                        <div className="space-y-1">
+                          {order.items.map((item, index) => (
+                            <div key={index} className="truncate">
+                              {item.itemName} ({item.quantity})
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="truncate font-medium">{order.items[0].itemName}</div>
+                          <div className="text-xs text-gray-500">
+                            +{order.items.length - 1} more items
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <div className="text-sm">
-                      {order.items.length} items
+                      {order.items.reduce((total, item) => total + item.quantity, 0)} units
                     </div>
                   </TableCell>
                   <TableCell>
@@ -494,6 +546,64 @@ const PurchaseOrders = ({
               ))}
             </TableBody>
           </Table>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-gray-700">
+                  Showing {startIndex + 1} to {Math.min(endIndex, totalOrders)} of {totalOrders} orders
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
+                  <Label className="text-sm">Rows per page:</Label>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={(value) => {
+                      setItemsPerPage(Number(value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <span className="text-sm px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
